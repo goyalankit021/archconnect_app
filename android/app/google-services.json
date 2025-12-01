@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "890488367944",
+    "project_id": "archconnect-app",
+    "storage_bucket": "archconnect-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:890488367944:android:4c2152a2775ee86d4de17d",
+        "android_client_info": {
+          "package_name": "com.archconnect.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCIBcifskLCpzHrg56XxlSMAcLoVjAGa4k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:890488367944:android:c58f06dc66cd62ca4de17d",
+        "android_client_info": {
+          "package_name": "com.company.archconnectapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCIBcifskLCpzHrg56XxlSMAcLoVjAGa4k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
