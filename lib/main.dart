@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
-import 'app.dart'; // Import our new app root
-import 'package:firebase_core/firebase_core.dart'; // Import Firebase Core
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // <--- Import this!
+import 'package:firebase_core/firebase_core.dart';
+import 'app.dart';
 
-void main() async{
-  // We can add more initialization logic here later (like Firebase)
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. Initialize Firebase before running the app
+  // Initialize Firebase
   await Firebase.initializeApp();
 
-  runApp(const ArchConnectApp());
+  // WRAP THE APP IN PROVIDERSCOPE
+  runApp(
+    const ProviderScope( // <--- This was likely missing or removed
+      child: ArchConnectApp(),
+    ),
+  );
 }

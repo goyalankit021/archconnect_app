@@ -1,0 +1,93 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../screens/otp_verification_screen.dart';
+
+// 1. The State Provider
+// This allows us to access this controller from ANY screen.
+final authControllerProvider = Provider((ref) => AuthController(FirebaseAuth.instance));
+
+class AuthController {
+  final FirebaseAuth _auth;
+
+  AuthController(this._auth);
+
+  // Variable to store the "Verification ID" needed for Step 2
+  String? _verificationId;
+
+  // --- FUNCTION 1: SEND OTP ---
+  Future<void> sendOtp({
+    required BuildContext context,
+    required String phoneNumber,
+  }) async {
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: '+91$phoneNumber',
+
+        // A. Auto-verify (Android only - sometimes happens instantly)
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          await _auth.signInWithCredential(credential);
+          // TODO: Navigate to Home Dashboard
+          print("Auto Verification Complete!");
+        },
+
+        // B. Handling Errors
+        verificationFailed: (FirebaseAuthException e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Verification Failed: ${e.message}")),
+          );
+        },
+
+        // C. Code Sent (This is the Happy Path)
+        codeSent: (String verificationId, int? resendToken) {
+          _verificationId = verificationId; // SAVE THIS ID!
+
+          // Navigate to OTP Screen
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => OtpVerificationScreen(phoneNumber: phoneNumber),
+            ),
+          );
+        },
+
+        // D. Timeout
+        codeAutoRetrievalTimeout: (String verificationId) {
+          _verificationId = verificationId;
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: ${e.toString()}")),
+      );
+    }
+  }
+
+  // --- FUNCTION 2: VERIFY OTP ---
+  Future<void> verifyOtp({
+    required BuildContext context,
+    required String userOtp,
+  }) async {
+    try {
+      // 1. Create a Credential using the ID we saved and the Code the user typed
+      PhoneAuthCredential credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: userOtp,
+      );
+
+      // 2. Sign In
+      await _auth.signInWithCredential(credential);
+
+      // 3. Success!
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Login Successful!")),
+      );
+
+      // TODO: Logic to check if user exists in Firestore, then route to Dashboard or Profile Setup
+
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Invalid OTP: ${e.message}")),
+      );
+    }
+  }
+}
