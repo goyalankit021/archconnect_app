@@ -1,7 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/otp_verification_screen.dart';
+import '../screens/create_profile_screen.dart';
+import '../data/user_repository.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // 1. The State Provider
 // This allows us to access this controller from ANY screen.
@@ -77,12 +81,33 @@ class AuthController {
       // 2. Sign In
       await _auth.signInWithCredential(credential);
 
-      // 3. Success!
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login Successful!")),
-      );
+      // 3. Check Database
+      final userRepo = ProviderContainer().read(userRepositoryProvider); // OR pass Ref to AuthController
+      // *Better Way for Riverpod*: Pass 'Ref' to AuthController constructor.
+      // For now, let's keep it simple and just do a direct check:
 
-      // TODO: Logic to check if user exists in Firestore, then route to Dashboard or Profile Setup
+      final uid = _auth.currentUser!.uid;
+      // 1. Point to the specific database
+      final db = FirebaseFirestore.instanceFor(
+          app: Firebase.app(),
+          databaseId: 'arch-connect-database'
+      );
+      // 2. Check the document
+      final doc = await db.collection('users').doc(uid).get();
+
+      if (doc.exists) {
+        // User exists -> Go to Dashboard
+        print("User Exists! Go to Dashboard");
+        // Navigator.pushReplacement(Dashboard);
+      } else {
+        // User New -> Go to Create Profile
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => CreateProfileScreen(phoneNumber: _auth.currentUser?.phoneNumber ?? ""),
+          ),
+              (route) => false,
+        );
+      }
 
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
