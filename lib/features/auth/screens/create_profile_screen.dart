@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/user_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../home/screens/home_screen.dart';
 
 // Define the Roles enum here for now (We will move it to a model later)
 enum UserRole { architect, shopOwner }
@@ -53,14 +54,17 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
           role: roleString,
         );
 
-        // 3. Success! Navigate to Dashboard (We will build this next)
+        // 3. Success! Navigate to Dashboard
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Profile Created Successfully!")),
         );
 
-        // TODO: Navigate to HomeDashboard (We will build this in Phase 4)
-        print("NAVIGATE TO DASHBOARD NOW");
+        // NAVIGATE TO HOME SCREEN
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
+        );
 
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -6,6 +6,7 @@ import '../screens/otp_verification_screen.dart';
 import '../screens/create_profile_screen.dart';
 import '../data/user_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../home/screens/home_screen.dart';
 
 // 1. The State Provider
 // This allows us to access this controller from ANY screen.
@@ -96,9 +97,11 @@ class AuthController {
       final doc = await db.collection('users').doc(uid).get();
 
       if (doc.exists) {
-        // User exists -> Go to Dashboard
-        print("User Exists! Go to Dashboard");
-        // Navigator.pushReplacement(Dashboard);
+        // User Exists -> Go to Home Screen
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()), // <--- Update this
+              (route) => false,
+        );
       } else {
         // User New -> Go to Create Profile
         Navigator.of(context).pushAndRemoveUntil(
