@@ -165,4 +165,75 @@ class UserRepository {
     // ====================================================
     await batch.commit();
   }
+
+  // --- UPDATE KYC DOCUMENTS ---
+  Future<void> uploadKycDocument({
+    required String uid,
+    required String docType, // 'aadhar' or 'pan'
+    required String url,
+  }) async {
+    await _firestore.collection('users').doc(uid).update({
+      "kycDocuments.$docType": url,
+      "updatedAt": FieldValue.serverTimestamp(),
+      // Note: We DO NOT change kycStatus here.
+      // Manual verification is required by Admin.
+    });
+  }
+
+  // --- UPDATE PROFILE PHOTO ---
+  Future<void> updateProfilePhoto(String uid, String url) async {
+    await _firestore.collection('users').doc(uid).update({
+      "profilePhotoUrl": url,
+      "updatedAt": FieldValue.serverTimestamp(),
+    });
+  }
+
+  // --- UPDATE BANK DETAILS ---
+  Future<void> updateBankDetails({
+    required String uid,
+    required String accountNumber,
+    required String ifsc,
+    required String bankName,
+    required String upiId,
+  }) async {
+    // 1. Reference the Wallet Document
+    final walletRef = _firestore.collection('wallets').doc(uid);
+
+    // 2. Update the specific map field
+    await walletRef.update({
+      "bankDetails": {
+        "accountNumber": accountNumber,
+        "ifsc": ifsc.toUpperCase(),
+        "bankName": bankName,
+        "upi": upiId,
+      },
+      "lastUpdatedAt": FieldValue.serverTimestamp(),
+    });
+
+    // 3. OPTIONAL: Check if Profile is now "Complete"
+    // For now, we just save the bank data.
+  }
+
+  // --- FETCH WALLET DATA (To display it) ---
+  Stream<DocumentSnapshot> getWalletStream(String uid) {
+    return _firestore.collection('wallets').doc(uid).snapshots();
+  }
+
+  Future<void> updatePersonalDetails({
+    required String uid,
+    required String name,
+    required String firmName,
+    required String email,
+    required String city,
+    required String state,
+  }) async {
+    await _firestore.collection('users').doc(uid).update({
+      "name": name,
+      "email": email,
+      "firm.name": firmName,       // Dot notation updates ONLY the name inside firm
+      "metadata.city": city,       // Dot notation updates ONLY the city
+      "metadata.state": state,     // Dot notation updates ONLY the state
+      "updatedAt": FieldValue.serverTimestamp(),
+    });
+  }
 }
