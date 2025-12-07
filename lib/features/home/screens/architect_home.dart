@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../widgets/wallet_card.dart';
 import 'shop_selection_screen.dart';
+import '../../profile/screens/architect_profile_screen.dart';
 
 class ArchitectHome extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -42,9 +43,17 @@ class ArchitectHome extends StatelessWidget {
                       ),
                     ],
                   ),
-                  CircleAvatar(
-                    backgroundColor: kSurfaceColor,
-                    child: const Icon(Icons.person, color: kPrimaryColor),
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ArchitectProfileScreen()),
+                      );
+                    },
+                    child: CircleAvatar(
+                      backgroundColor: kSurfaceColor,
+                      child: const Icon(Icons.person, color: kPrimaryColor),
+                    ),
                   ),
                 ],
               ),
