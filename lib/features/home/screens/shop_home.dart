@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../profile/screens/shop_profile_screen.dart';
 
 class ShopHome extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -14,8 +15,29 @@ class ShopHome extends StatelessWidget {
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
         title: const Text("Shop Dashboard"),
-        backgroundColor: Colors.green[800], // Different color for distinction
+        backgroundColor: Colors.green[800],
         foregroundColor: Colors.white,
+        elevation: 0,
+
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: InkWell(
+              onTap: () {
+                // Navigate to Shop Profile
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ShopProfileScreen()),
+                );
+              },
+              child: const CircleAvatar(
+                backgroundColor: Colors.white,
+                radius: 18,
+                child: Icon(Icons.store, size: 20, color: Colors.green),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Center(
         child: Column(

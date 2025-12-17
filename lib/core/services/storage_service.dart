@@ -15,7 +15,8 @@ class StorageService {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-        imageQuality: 80, // Optimize size automatically
+        // ✅ NEW: Compress image. 50 is a sweet spot (good quality, ~10x smaller size)
+        imageQuality: 50,
       );
 
       if (pickedFile != null) {
@@ -50,6 +51,19 @@ class StorageService {
     } catch (e) {
       print("Error uploading file: $e");
       throw Exception("Upload failed: $e");
+    }
+  }
+
+  // --- DELETE FILE ---
+  Future<void> deleteFile(String url) async {
+    try {
+      // Create a reference from the URL
+      final ref = _storage.refFromURL(url);
+      await ref.delete();
+      print("Deleted file: $url");
+    } catch (e) {
+      print("Error deleting file: $e");
+      // We don't throw here to avoid blocking the UI if delete fails
     }
   }
 }

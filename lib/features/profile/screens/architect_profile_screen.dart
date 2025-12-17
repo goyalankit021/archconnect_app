@@ -60,12 +60,14 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
     );
 
     try {
-      // 4. Determine Path & Upload
+      // 4. Determine Path & Upload (UPDATED STRUCTURE)
       String path;
       if (docType == 'profile') {
-        path = 'profiles/$uid.jpg';
+        // New: Organized Folder
+        path = 'users/$uid/profile.jpg';
       } else {
-        path = 'kyc/${uid}_$docType.jpg';
+        // New: Organized Folder
+        path = 'users/$uid/kyc/$docType.jpg';
       }
 
       final url = await ref.read(storageServiceProvider).uploadFile(file: file, path: path);
