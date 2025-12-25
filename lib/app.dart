@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
-import 'features/auth/screens/splash_screen.dart'; // We will create this next
+import 'features/auth/screens/splash_screen.dart';
 
 class ArchConnectApp extends StatelessWidget {
   const ArchConnectApp({super.key});

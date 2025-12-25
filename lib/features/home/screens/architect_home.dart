@@ -3,6 +3,11 @@ import '../../../core/theme/app_theme.dart';
 import '../widgets/wallet_card.dart';
 import 'shop_selection_screen.dart';
 import '../../profile/screens/architect_profile_screen.dart';
+import '../../discovery/screens/shop_discovery_screen.dart'; // <--- Import this
+import '../../notifications/screens/notification_screen.dart';
+
+// Import the script at the top ToDo Delete this later
+import '../../../scripts/seed_notifications.dart';
 
 class ArchitectHome extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -43,17 +48,35 @@ class ArchitectHome extends StatelessWidget {
                       ),
                     ],
                   ),
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ArchitectProfileScreen()),
-                      );
-                    },
-                    child: CircleAvatar(
-                      backgroundColor: kSurfaceColor,
-                      child: const Icon(Icons.person, color: kPrimaryColor),
-                    ),
+                  Row(
+                    children: [
+                      // ✅ NEW: Notification Bell
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined, color: Colors.black),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const NotificationScreen()),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(width: 8), // Small gap
+
+                      // Existing Profile Icon
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ArchitectProfileScreen()),
+                          );
+                        },
+                        child: CircleAvatar(
+                          backgroundColor: kSurfaceColor,
+                          child: const Icon(Icons.person, color: kPrimaryColor),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -67,71 +90,51 @@ class ArchitectHome extends StatelessWidget {
               const SizedBox(height: 30),
 
               // 3. Quick Actions Title
-              Text(
-                "Quick Actions",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
+              // --- QUICK ACTIONS ROW ---
+              Row(
+                children: [
+                  // 1. SEND REFERRAL CARD
+                  Expanded(
+                    child: _buildActionCard(
+                      context,
+                      title: "Send New\nReferral",
+                      icon: Icons.send_rounded,
+                      color: Colors.blue,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ShopDiscoveryScreen()),
+                        );
+                      },
+                    ),
+                  ),
 
-              // 4. The "Send Referral" Button (Big & Prominent)
-              InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ShopSelectionScreen()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                  const SizedBox(width: 16),
+
+                  // 2. TRACK STATUS CARD
+                  Expanded(
+                    child: _buildActionCard(
+                      context,
+                      title: "Track\nStatus",
+                      icon: Icons.history_edu, // Changed icon for variety
+                      color: Colors.orange,
+                      // Todo Remove this later and uncomment below lines
+                      onTap: () async {
+                        // TEMPORARY TRIGGER
+                        await seedNotifications();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Seed Data Added! Check Bell Icon."))
+                        );
+                      },
+                      // onTap: () {
+                      //   // We will build this screen later
+                      //   ScaffoldMessenger.of(context).showSnackBar(
+                      //       const SnackBar(content: Text("Tracking Screen Coming Soon!"))
+                      //   );
+                      // },
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: kPrimaryColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.send_rounded, color: kPrimaryColor),
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Send New Referral",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Text(
-                            "Connect a client to a shop",
-                            style: TextStyle(
-                              color: kTextSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      const Icon(Icons.arrow_forward_ios, size: 16, color: kTextSecondary),
-                    ],
-                  ),
-                ),
+                ],
               ),
 
               const SizedBox(height: 30),
@@ -158,6 +161,45 @@ class ArchitectHome extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionCard(
+      BuildContext context, {
+        required String title,
+        required IconData icon,
+        required Color color,
+        required VoidCallback onTap, // <--- Add this parameter
+      }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap, // <--- Use it here
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                  child: Icon(icon, color: color),
+                ),
+                const SizedBox(height: 16),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
           ),
         ),
       ),

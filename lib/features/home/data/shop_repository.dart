@@ -143,6 +143,26 @@ class ShopRepository {
       "updatedAt": FieldValue.serverTimestamp(),
     });
   }
+  // --- FETCH ACTIVE SHOPS FOR DISCOVERY ---
+  // We fetch strictly 'active' shops.
+  // We will filter by City on the client side or here.
+  // For MVP, let's fetch all active shops and filter in UI for maximum speed.
+  Stream<List<DocumentSnapshot<Map<String, dynamic>>>> getActiveShopsStream() {
+    return _firestore
+        .collection('shops')
+        .where('status', isEqualTo: 'active')
+    // .orderBy('createdAt', descending: true) // Optional: Newest first
+        .snapshots()
+        .map((snapshot) => snapshot.docs);
+  }
+
+  // --- TOGGLE SHOP STATUS (ACTIVE/INACTIVE) ---
+  Future<void> updateShopStatus(String uid, bool isActive) async {
+    await _firestore.collection('shops').doc(uid).update({
+      "status": isActive ? "active" : "inactive",
+      "updatedAt": FieldValue.serverTimestamp(),
+    });
+  }
 }
 
 // A FutureProvider to easily load this in the UI

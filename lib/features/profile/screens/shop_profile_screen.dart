@@ -497,6 +497,36 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                               fontSize: 14,
                             ),
                           ),
+                          const SizedBox(height: 20),
+                          // ✅ NEW: VISIBILITY TOGGLE
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  (shopData['status'] == 'active') ? "SHOP IS ONLINE" : "SHOP IS OFFLINE",
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                                const SizedBox(width: 8),
+                                Switch(
+                                  value: shopData['status'] == 'active',
+                                  activeColor: Colors.white,
+                                  activeTrackColor: Colors.greenAccent,
+                                  inactiveThumbColor: Colors.grey,
+                                  inactiveTrackColor: Colors.white24,
+                                  onChanged: (val) async {
+                                    // Optimistic update (UI changes instantly, DB follows)
+                                    await ref.read(shopRepositoryProvider).updateShopStatus(uid, val);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),

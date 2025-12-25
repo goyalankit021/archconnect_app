@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Required for Logout
 import '../../../core/services/storage_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/user_provider.dart';
 import '../../auth/data/user_repository.dart';
+import '../../auth/screens/login_screen.dart'; // Required for Redirect
 import 'bank_details_form.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -21,12 +23,11 @@ class ArchitectProfileScreen extends ConsumerStatefulWidget {
 
 class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen> {
 
-  // --- UPLOAD LOGIC ---
+  // --- UPLOAD LOGIC (Kept exactly as is) ---
   Future<void> _handleUpload({
     required String uid,
-    required String docType, // 'profile', 'aadhar', or 'pan'
+    required String docType,
   }) async {
-    // 1. Ask Camera or Gallery
     final source = await showModalBottomSheet<bool>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -35,45 +36,39 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
             ListTile(
               leading: const Icon(Icons.camera_alt),
               title: const Text('Take Photo'),
-              onTap: () => Navigator.pop(ctx, true), // Returns true for Camera
+              onTap: () => Navigator.pop(ctx, true),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.pop(ctx, false), // Returns false for Gallery
+              onTap: () => Navigator.pop(ctx, false),
             ),
           ],
         ),
       ),
     );
 
-    if (source == null) return; // User cancelled
+    if (source == null) return;
 
-    // 2. Pick Image
     final File? file = await ref.read(storageServiceProvider).pickImage(fromCamera: source);
     if (file == null) return;
 
-    // 3. Show Loading
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Uploading... Please wait.")),
     );
 
     try {
-      // 4. Determine Path & Upload (UPDATED STRUCTURE)
       String path;
       if (docType == 'profile') {
-        // New: Organized Folder
         path = 'users/$uid/profile.jpg';
       } else {
-        // New: Organized Folder
         path = 'users/$uid/kyc/$docType.jpg';
       }
 
       final url = await ref.read(storageServiceProvider).uploadFile(file: file, path: path);
 
       if (url != null) {
-        // 5. Update Database
         if (docType == 'profile') {
           await ref.read(userRepositoryProvider).updateProfilePhoto(uid, url);
         } else {
@@ -94,6 +89,84 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
         SnackBar(content: Text("Upload Failed: $e")),
       );
     }
+  }
+
+  // --- NEW: SETTINGS SHEET LOGIC ---
+  void _showSettingsSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              // Drag Handle
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 20),
+
+              // 1. Support
+              ListTile(
+                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle), child: const Icon(Icons.support_agent, color: Colors.blue, size: 20)),
+                title: const Text("Contact Support", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Emailing support...")));
+                },
+              ),
+
+              // 2. Share
+              ListTile(
+                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.orange.shade50, shape: BoxShape.circle), child: const Icon(Icons.share, color: Colors.orange, size: 20)),
+                title: const Text("Share App", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening Share Menu...")));
+                },
+              ),
+
+              // 3. Terms
+              ListTile(
+                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.purple.shade50, shape: BoxShape.circle), child: const Icon(Icons.description, color: Colors.purple, size: 20)),
+                title: const Text("Terms & Conditions", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                onTap: () => Navigator.pop(context),
+              ),
+
+              // ✅ FIX: Removed SizedBox, changed color to shade300 (Visible but Soft)
+              Divider(height: 24, thickness: 1, color: Colors.grey.shade300),
+
+              // 4. LOGOUT
+              ListTile(
+                visualDensity: VisualDensity.compact,
+                // Moved padding slightly to align perfectly with the divider
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle), child: const Icon(Icons.logout, color: Colors.red, size: 20)),
+                title: const Text("Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  // ✅ STEP 1: CLEAR ZOMBIE DATA
+                  // This forces the app to fetch fresh data next time, no matter what.
+                  ref.invalidate(userProfileStreamProvider);
+                  ref.invalidate(walletStreamProvider); // Clear wallet cache too
+                  await FirebaseAuth.instance.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          (Route<dynamic> route) => false,
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 8), // Bottom padding
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -121,6 +194,13 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
               backgroundColor: kPrimaryColor,
               foregroundColor: Colors.white,
               elevation: 0,
+              // ✅ ADDED: SETTINGS ACTION
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: _showSettingsSheet, // Opens the new menu
+                ),
+              ],
             ),
             body: Column(
               children: [
@@ -219,7 +299,7 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
                     children: [
                       _buildPersonalTab(userData),
                       _buildBankTab(userData),
-                      _buildKycTab(userData, uid), // Pass UID here
+                      _buildKycTab(userData, uid),
                     ],
                   ),
                 ),
@@ -233,6 +313,7 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
     );
   }
 
+  // --- EXISTING TABS (Kept Exactly as is) ---
   Widget _buildPersonalTab(Map<String, dynamic> data) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -244,12 +325,10 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
           _buildInfoTile("State", data['metadata']?['state'] ?? "N/A", Icons.map),
 
           const SizedBox(height: 20),
-
-          // ✅ THE MISSING BUTTON
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: () => _showEditPersonalSheet(data), // Opens the sheet
+              onPressed: () => _showEditPersonalSheet(data),
               child: const Text("Edit Personal Details"),
             ),
           ),
@@ -260,8 +339,6 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
 
   Widget _buildBankTab(Map<String, dynamic> userData) {
     final uid = userData['uid'];
-
-    // Watch the wallet stream for this user
     final walletAsync = ref.watch(walletStreamProvider(uid));
 
     return walletAsync.when(
@@ -269,7 +346,6 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
         final walletData = snapshot.data() as Map<String, dynamic>?;
         final bankDetails = walletData?['bankDetails'] as Map<String, dynamic>?;
 
-        // STATE 1: No Details Found
         if (bankDetails == null || bankDetails['accountNumber'] == null) {
           return Center(
             child: Column(
@@ -281,7 +357,6 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {
-                    // Navigate to Form
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const BankDetailsForm()),
@@ -294,7 +369,6 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
           );
         }
 
-        // STATE 2: Details Found (Show Card)
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -460,11 +534,8 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
     );
   }
 
-  // --- SHOW EDIT SHEET ---
   void _showEditPersonalSheet(Map<String, dynamic> userData) {
     final uid = userData['uid'];
-
-    // Controllers pre-filled with existing data
     final nameCtrl = TextEditingController(text: userData['name']);
     final firmCtrl = TextEditingController(text: userData['firm']?['name']);
     final emailCtrl = TextEditingController(text: userData['email']);
@@ -473,14 +544,14 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Allows sheet to go full height if needed
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return Padding(
           padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom, // Keyboard awareness
+              bottom: MediaQuery.of(context).viewInsets.bottom,
               left: 24,
               right: 24,
               top: 24
@@ -495,7 +566,6 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
               ),
               const SizedBox(height: 20),
 
-              // Fields
               TextField(
                 controller: nameCtrl,
                 decoration: const InputDecoration(labelText: "Full Name", prefixIcon: Icon(Icons.person)),
@@ -532,13 +602,12 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
 
               const SizedBox(height: 30),
 
-              // Save Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
                     try {
-                      Navigator.pop(context); // Close sheet first
+                      Navigator.pop(context);
 
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Updating Profile...")),

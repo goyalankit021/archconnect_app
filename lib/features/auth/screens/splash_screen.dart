@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'login_screen.dart'; // We'll create this "stub" file next
 import '../../../core/theme/app_theme.dart'; // Import our theme colors
 import 'dart:async';
+import '../../../core/authentication/auth_wrapper.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -22,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (mounted) {
         // Replace with a clean named route if possible, but MaterialPageRoute is fine for MVP:
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const AuthWrapper()),
         );
       }
     });
