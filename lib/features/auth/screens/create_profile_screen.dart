@@ -2,8 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../home/screens/home_screen.dart'; // Ensure this path is correct
 import '../data/user_repository.dart';
+import '../../../core/authentication/auth_wrapper.dart';
 
 enum UserRole { architect, shopOwner }
 
@@ -60,7 +60,7 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
 
         // SUCCESS
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (context) => const AuthWrapper()),
               (route) => false,
         );
 
