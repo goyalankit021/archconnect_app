@@ -2,14 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
-// ⚠️ CHANGE THIS TO YOUR ACTUAL ARCHITECT UID from Authentication
-// You can find this in the Firebase Console -> Authentication -> User UID
-const String TARGET_UID = "auGiIXMeywfOYR7PU4XfUnO1gLc2"; // Ensure this matches your login
+const String TARGET_UID = "auGiIXMeywfOYR7PU4XfUnO1gLc2";
 
 Future<void> seedNotifications() async {
-  // Ensure Firebase is initialized (if running from main app trigger)
-  // If running standalone, we need setup, but easiest way is to trigger this from a temporary button.
-
   final db = FirebaseFirestore.instanceFor(
       app: Firebase.app(),
       databaseId: 'arch-connect-database'
@@ -17,75 +12,131 @@ Future<void> seedNotifications() async {
 
   final batch = db.batch();
 
-  // --- Sample 1: Referral Confirmed (Unread) ---
-  final id1 = "notif_seed_${DateTime.now().millisecondsSinceEpoch}_1";
-  final ref1 = db.collection('notifications').doc(id1);
-  batch.set(ref1, {
-    "notificationId": id1,
-    "toUid": TARGET_UID,
-    "toRole": "architect",
-    "type": "referral_confirmed",
-    "title": "Referral Confirmed! 🎉",
-    "body": "Your referral at Goyal Hardware has been confirmed for ₹1,20,000",
-    "icon": "referral_success",
-    "actionType": "navigate",
-    "actionData": {"screen": "referral_detail", "referralId": "ref_mock_001"},
-    "sent": true,
-    "sentAt": FieldValue.serverTimestamp(),
-    "read": false, // UNREAD
-    "readAt": null,
-    "clicked": false,
-    "clickedAt": null,
-    "priority": "high",
-    "createdAt": FieldValue.serverTimestamp()
-  });
+  // --- 1. SEED REFERRALS (Strict Schema) ---
 
-  // --- Sample 2: Payout Received (Unread) ---
-  final id2 = "notif_seed_${DateTime.now().millisecondsSinceEpoch}_2";
-  final ref2 = db.collection('notifications').doc(id2);
-  batch.set(ref2, {
-    "notificationId": id2,
-    "toUid": TARGET_UID,
-    "toRole": "architect",
-    "type": "payout_received",
-    "title": "Payment Received 💰",
-    "body": "You received ₹5,000 commission for the Sharma Villa project.",
-    "icon": "money",
-    "actionType": "navigate",
-    "actionData": {"screen": "wallet", "referralId": null},
-    "sent": true,
-    "sentAt": FieldValue.serverTimestamp(),
-    "read": false, // UNREAD
-    "readAt": null,
-    "clicked": false,
-    "clickedAt": null,
+  // Referral 1: Pending (Just sent, no bill yet)
+  final refRef1 = db.collection('referrals').doc("ref_mock_003");
+  batch.set(refRef1, {
+    "referralId": "ref_mock_003",
+    "architectUid": TARGET_UID,
+    "shopId": "shop_goyal_001",
+    // UI Helper (Optional but good for lists)
+    "shopName": "Goyal Hardware",
+
+    "clientInfo": {
+      "name": "Mr. Rahul Verma",
+      "phone": "+919876543210",
+      "address": "Sector 14, Hisar"
+    },
+    "projectName": "Verma Kitchen Reno",
+    "projectType": "renovation",
+
+    "status": "pending",
     "priority": "normal",
-    "createdAt": FieldValue.serverTimestamp()
+
+    // Financials
+    "commissionPercent": 5.0,
+    "expectedAmount": 50000,
+    "billAmount": null,
+    "commissionAmount": null,
+
+    // Meta
+    "createdAt": Timestamp.now(),
+    "expiryAt": Timestamp.fromDate(DateTime.now().add(const Duration(days: 15))),
+    "materialCategories": ["hardware", "plywood"],
+    "estimatedCategories": {
+      "hardware": 30000,
+      "plywood": 20000
+    },
+    "notes": "Client needs waterproof ply.",
+
+    // Audit Trail
+    "statusHistory": [
+      {
+        "status": "pending",
+        "timestamp": Timestamp.now(),
+        "byUid": TARGET_UID
+      }
+    ]
   });
 
-  // --- Sample 3: Old Alert (Read) ---
-  final id3 = "notif_seed_${DateTime.now().millisecondsSinceEpoch}_3";
-  final ref3 = db.collection('notifications').doc(id3);
-  batch.set(ref3, {
-    "notificationId": id3,
-    "toUid": TARGET_UID,
-    "toRole": "architect",
-    "type": "system_alert",
-    "title": "Welcome to ArchConnect",
-    "body": "Your profile has been verified. Start referring today!",
-    "icon": "info",
-    "actionType": "none",
-    "actionData": null,
-    "sent": true,
-    "sentAt": Timestamp.now(), // slightly older
-    "read": true, // READ
-    "readAt": Timestamp.now(),
-    "clicked": true,
-    "clickedAt": Timestamp.now(),
-    "priority": "low",
-    "createdAt": Timestamp.now()
+  // Referral 2: Confirmed (Shop accepted)
+  final refRef2 = db.collection('referrals').doc("ref_mock_002");
+  batch.set(refRef2, {
+    "referralId": "ref_mock_002",
+    "architectUid": TARGET_UID,
+    "shopId": "shop_goyal_001",
+    "shopName": "Goyal Hardware",
+
+    "clientInfo": {
+      "name": "Mrs. Anjali Gupta",
+      "phone": "+919876543211",
+      "address": "Draupadi Ghat"
+    },
+    "projectName": "Gupta 3BHK",
+    "projectType": "residential",
+
+    "status": "confirmed",
+    "priority": "urgent",
+
+    "commissionPercent": 5.0,
+    "expectedAmount": 120000,
+    "billAmount": null,
+    "commissionAmount": null,
+
+    "createdAt": Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 2))),
+    "confirmedAt": Timestamp.now(),
+    "materialCategories": ["tiles"],
+
+    "statusHistory": [
+      {
+        "status": "pending",
+        "timestamp": Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 2))),
+        "byUid": TARGET_UID
+      },
+      {
+        "status": "confirmed",
+        "timestamp": Timestamp.now(),
+        "byUid": "shop_goyal_001"
+      }
+    ]
+  });
+
+  // Referral 3: Completed (Money Made!)
+  final refRef3 = db.collection('referrals').doc("ref_mock_001");
+  batch.set(refRef3, {
+    "referralId": "ref_mock_001",
+    "architectUid": TARGET_UID,
+    "shopId": "shop_sharma_002",
+    "shopName": "Sharma Tiles",
+
+    "clientInfo": {
+      "name": "Mr. Vikram Singh",
+      "phone": "+919876543212",
+      "address": "Model Town"
+    },
+    "projectName": "Vikram Farmhouse",
+    "projectType": "commercial",
+
+    "status": "completed",
+    "priority": "normal",
+
+    "commissionPercent": 5.0,
+    "expectedAmount": 150000,
+    "billAmount": 150000,   // ✅ Actual Bill
+    "commissionAmount": 7500, // ✅ Actual Commission
+
+    "createdAt": Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 10))),
+    "confirmedAt": Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 9))),
+    "materialCategories": ["tiles", "sanitary"],
+
+    "statusHistory": [
+      { "status": "pending", "timestamp": Timestamp.now(), "byUid": TARGET_UID },
+      { "status": "confirmed", "timestamp": Timestamp.now(), "byUid": "shop_sharma_002" },
+      { "status": "completed", "timestamp": Timestamp.now(), "byUid": "shop_sharma_002" }
+    ]
   });
 
   await batch.commit();
-  debugPrint("✅ 3 Sample Notifications Added for UID: $TARGET_UID");
+  debugPrint("✅ SEED COMPLETE: Referrals, Transactions, and Wallets updated.");
 }

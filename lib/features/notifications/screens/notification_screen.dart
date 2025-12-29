@@ -128,9 +128,9 @@ class NotificationScreen extends ConsumerWidget {
               .update(updates);
 
           // TODO: Add Navigation Logic here later (e.g., go to Referral Details)
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Opening details..."))
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //     const SnackBar(content: Text("Opening details..."))
+          // );
         },
       ),
     );

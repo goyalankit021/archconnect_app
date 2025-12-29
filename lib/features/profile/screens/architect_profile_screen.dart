@@ -9,8 +9,11 @@ import '../../auth/data/user_repository.dart';
 import '../../auth/screens/login_screen.dart'; // Required for Redirect
 import 'bank_details_form.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:share_plus/share_plus.dart';
+import 'terms_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-final walletStreamProvider = StreamProvider.family<DocumentSnapshot, String>((ref, uid) {
+final profileBankDetailsProvider = StreamProvider.family<DocumentSnapshot, String>((ref, uid) {
   return ref.read(userRepositoryProvider).getWalletStream(uid);
 });
 
@@ -113,7 +116,7 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
                 trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Emailing support...")));
+                  _showContactSupportDialog();
                 },
               ),
 
@@ -124,16 +127,26 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
                 trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening Share Menu...")));
+                  // ✅ REAL SHARE LOGIC
+                  Share.share(
+                      'Check out ArchConnect! The best way for Architects to manage referrals and earn commissions.\n\nDownload here: https://archconnect.app',
+                      subject: 'Join me on ArchConnect'
+                  );
                 },
               ),
 
               // 3. Terms
               ListTile(
                 leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.purple.shade50, shape: BoxShape.circle), child: const Icon(Icons.description, color: Colors.purple, size: 20)),
-                title: const Text("Terms & Conditions", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                title: const Text("Terms & Services", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const TermsScreen()),
+                  );
+                },
               ),
 
               // ✅ FIX: Removed SizedBox, changed color to shade300 (Visible but Soft)
@@ -151,7 +164,7 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
                   // ✅ STEP 1: CLEAR ZOMBIE DATA
                   // This forces the app to fetch fresh data next time, no matter what.
                   ref.invalidate(userProfileStreamProvider);
-                  ref.invalidate(walletStreamProvider); // Clear wallet cache too
+                  ref.invalidate(profileBankDetailsProvider); // Clear wallet cache too
                   await FirebaseAuth.instance.signOut();
                   if (context.mounted) {
                     Navigator.of(context).pushAndRemoveUntil(
@@ -339,7 +352,7 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
 
   Widget _buildBankTab(Map<String, dynamic> userData) {
     final uid = userData['uid'];
-    final walletAsync = ref.watch(walletStreamProvider(uid));
+    final walletAsync = ref.watch(profileBankDetailsProvider(uid));
 
     return walletAsync.when(
       data: (snapshot) {
@@ -639,6 +652,110 @@ class _ArchitectProfileScreenState extends ConsumerState<ArchitectProfileScreen>
           ),
         );
       },
+    );
+  }
+
+  // --- CONTACT SUPPORT DIALOG ---
+  void _showContactSupportDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Center(
+          child: Column(
+            children: [
+              Icon(Icons.headset_mic, size: 40, color: kPrimaryColor),
+              SizedBox(height: 12),
+              Text("Contact Support", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "We are here to help! Reach out to us via:",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 20),
+
+            // 1. Phone Option
+            _buildContactTile(
+              icon: Icons.phone,
+              color: Colors.green,
+              title: "Call Us",
+              subtitle: "+91 80599 04727",
+              onTap: () async {
+                final Uri launchUri = Uri(scheme: 'tel', path: '+918059904727');
+                if (await canLaunchUrl(launchUri)) {
+                  await launchUrl(launchUri);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // 2. Email Option
+            _buildContactTile(
+              icon: Icons.email,
+              color: Colors.blue,
+              title: "Email Us",
+              subtitle: "archconnect021@gmail.com",
+              onTap: () async {
+                final Uri launchUri = Uri(scheme: 'mailto', path: 'archconnect021@gmail.com');
+                if (await canLaunchUrl(launchUri)) {
+                  await launchUrl(launchUri);
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CLOSE", style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper widget for the dialog tiles
+  Widget _buildContactTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
+                Text(subtitle, style: const TextStyle(fontSize: 13, color: Colors.black87)),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
