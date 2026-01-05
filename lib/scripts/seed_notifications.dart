@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 const String TARGET_UID = "auGiIXMeywfOYR7PU4XfUnO1gLc2";
+const String TARGET_SHOP_UID = "82y5zZlbbGhbfruzIiXrgSJURxn2";
 
 Future<void> seedNotifications() async {
   final db = FirebaseFirestore.instanceFor(
@@ -139,4 +141,165 @@ Future<void> seedNotifications() async {
 
   await batch.commit();
   debugPrint("✅ SEED COMPLETE: Referrals, Transactions, and Wallets updated.");
+}
+
+Future<void> seedShopNotifications(BuildContext context) async {
+  final db = FirebaseFirestore.instanceFor(
+      app: Firebase.app(),
+      databaseId: 'arch-connect-database'
+  );
+
+  final batch = db.batch();
+  final timestamp = FieldValue.serverTimestamp();
+
+  // --- 1. NEW LEAD (Actionable: Navigate to Leads) ---
+  final notifRef1 = db.collection('notifications').doc();
+  batch.set(notifRef1, {
+    "notificationId": notifRef1.id,
+    "toUid": TARGET_SHOP_UID,
+    "toRole": "shop", // 🟢 Identifies this as Shop UI
+
+    // Content
+    "type": "referral_initiated",
+    "title": "New Lead: Sharma House 🏠",
+    "body": "Ar. Ankit has sent a new client for Tiles. Tap to view details.",
+    "icon": "referral_initiated", // We will map this to an IconData later
+
+    // Action (The Magic Part)
+    "actionType": "navigate",
+    "actionData": {
+      "screen": "shop_leads", // We will listen for this string
+      "tab": "new_requests"   // Optional: Open specific tab
+    },
+
+    // Delivery & Meta
+    "sent": true,
+    "sentAt": timestamp,
+    "read": false,
+    "readAt": null,
+    "clicked": false,
+    "clickedAt": null,
+    "priority": "high",
+    "createdAt": timestamp
+  });
+
+  // --- 2. SYSTEM WELCOME (Info Only) ---
+  final notifRef2 = db.collection('notifications').doc();
+  batch.set(notifRef2, {
+    "notificationId": notifRef2.id,
+    "toUid": TARGET_SHOP_UID,
+    "toRole": "shop",
+
+    "type": "system_alert",
+    "title": "Welcome to ArchConnect! 🚀",
+    "body": "Your shop is live. Complete your profile to get more leads.",
+    "icon": "system_alert",
+
+    "actionType": "none", // No navigation
+    "actionData": null,
+
+    "sent": true,
+    "sentAt": timestamp,
+    "read": true, // Already read
+    "priority": "normal",
+    "createdAt": timestamp
+  });
+
+  // --- 3. PAYOUT APPROVED (Actionable: Navigate to Wallet) ---
+  final notifRef3 = db.collection('notifications').doc();
+  batch.set(notifRef3, {
+    "notificationId": notifRef3.id,
+    "toUid": TARGET_SHOP_UID,
+    "toRole": "shop",
+
+    "type": "payout_approved",
+    "title": "Payout Processed 💰",
+    "body": "₹15,000 has been transferred to your HDFC account.",
+    "icon": "payout_success",
+
+    "actionType": "navigate",
+    "actionData": {
+      "screen": "shop_wallet"
+    },
+
+    "sent": true,
+    "sentAt": timestamp,
+    "read": false,
+    "priority": "normal",
+    "createdAt": timestamp
+  });
+
+  await batch.commit();
+
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Shop Notifications Seeded!"))
+    );
+  }
+}
+
+// Call this function from your Shop Dashboard AppBar
+Future<void> seedReferralData(BuildContext context) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+
+  if (uid == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Error: You must be logged in to seed data.")),
+    );
+    return;
+  }
+
+  // Database Reference
+  final db = FirebaseFirestore.instanceFor(
+      app: Firebase.app(),
+      databaseId: 'arch-connect-database'
+  );
+
+  // The Dummy Data (Targeting YOU as the shop)
+  final dummyData = {
+    "referralId": "ref_${DateTime.now().millisecondsSinceEpoch}",
+    "architectUid": "user_arch_demo_001",
+    "shopId": uid, // <--- CRITICAL: Links this lead to YOUR dashboard
+    "clientInfo": {
+      "name": "Mr. Sharma",
+      "phone": "+91 98765 43210",
+      "address": "Sector 13, Hisar"
+    },
+    "projectName": "3BHK Luxury Renovation",
+    "projectType": "residential",
+    "status": "pending",
+    "priority": "urgent",
+
+    // Financials
+    "commissionPercent": 5.0,
+    "expectedAmount": 150000, // 1.5 Lakhs
+    "billAmount": null,
+    "commissionAmount": null,
+
+    // Metadata
+    "createdAt": FieldValue.serverTimestamp(),
+    "expiryAt": DateTime.now().add(const Duration(days: 15)),
+    "notes": "Client wants Italian marble options.",
+    "materialCategories": ["flooring", "sanitary"],
+  };
+
+  try {
+    await db.collection('referrals').add(dummyData);
+
+    // Optional: Trigger a snackbar to confirm
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("✅ Dummy Lead Added! Check 'Incoming Leads'."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error seeding: $e")),
+      );
+    }
+  }
 }

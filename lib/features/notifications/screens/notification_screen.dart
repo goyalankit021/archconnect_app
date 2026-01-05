@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../leads/screens/view_leads_screen.dart';
 
 // --- PROVIDER TO FETCH NOTIFICATIONS ---
 final userNotificationsProvider = StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
@@ -105,7 +106,7 @@ class NotificationScreen extends ConsumerWidget {
           _formatTime(data['createdAt']),
           style: const TextStyle(fontSize: 10, color: Colors.grey),
         ),
-        onTap: () {
+        onTap: () async {
           final String notifId = data['notificationId'];
 
           // Prepare the updates
@@ -115,22 +116,31 @@ class NotificationScreen extends ConsumerWidget {
           };
 
           // Only set 'read' metadata if it wasn't read before
-          // (Preserve the original read time if they click it again later)
           if (!isRead) {
             updates['read'] = true;
             updates['readAt'] = FieldValue.serverTimestamp();
           }
 
           // Execute Update
-          FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database')
+          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database')
               .collection('notifications')
               .doc(notifId)
               .update(updates);
 
-          // TODO: Add Navigation Logic here later (e.g., go to Referral Details)
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //     const SnackBar(content: Text("Opening details..."))
-          // );
+          // --- NAVIGATION LOGIC ---
+          if (context.mounted) {
+            if (type == 'referral_initiated') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ViewLeadsScreen(),
+                ),
+              );
+            } else {
+              // Handle general clicks or other types (e.g., 'shop' related updates)
+              // You might want to navigate to a generic details screen or the shop home here
+            }
+          }
         },
       ),
     );
@@ -158,19 +168,20 @@ class NotificationScreen extends ConsumerWidget {
   IconData _getIcon(String type) {
     if (type.contains('referral')) return Icons.person_add_alt_1;
     if (type.contains('money') || type.contains('payout')) return Icons.account_balance_wallet;
+    // Assuming 'shop' or product notifications might have a different icon
+    if (type.contains('shop') || type.contains('order')) return Icons.shopping_bag;
     return Icons.notifications;
   }
 
   Color _getIconColor(String type) {
     if (type.contains('referral')) return Colors.blue;
     if (type.contains('money') || type.contains('payout')) return Colors.green;
+    if (type.contains('shop') || type.contains('order')) return Colors.purple;
     return Colors.orange;
   }
 
   String _formatTime(dynamic timestamp) {
     if (timestamp == null) return "Just now";
-    // Simple logic to show "2h ago" or "Today" could go here.
-    // For MVP, just returning a static indicator or converting if it's a Timestamp
     if (timestamp is Timestamp) {
       final date = timestamp.toDate();
       final now = DateTime.now();

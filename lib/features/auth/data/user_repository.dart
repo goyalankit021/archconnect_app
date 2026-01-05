@@ -158,6 +158,17 @@ class UserRepository {
           "count": 0
         }
       });
+
+      // ---> B. SHOP STATS COLLECTION (Dashboard Numbers) <--- NEW ADDITION
+      final statsRef = _firestore.collection('shop_stats').doc(user.uid);
+      batch.set(statsRef, {
+        "totalRevenue": 0.0,
+        "totalCommission": 0.0,
+        "totalPaid": 0.0, // Explicitly initialized to avoid null errors
+        "totalDue": 0.0,
+        "activeReferrals": 0,
+        "updatedAt": timestamp,
+      });
     }
 
     // ====================================================
