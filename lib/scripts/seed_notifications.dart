@@ -303,3 +303,88 @@ Future<void> seedReferralData(BuildContext context) async {
     }
   }
 }
+
+Future<void> seedPlatformBankDetails() async {
+  final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database');
+
+  try {
+    await db.collection('platform_settings').doc('payment_config').set({
+      'bankName': 'HDFC Bank',
+      'accountNumber': '50200098765432',
+      'ifscCode': 'HDFC0000240',
+      'upiId': 'archconnect@hdfc',
+      'beneficiaryName': 'ArchConnect Solutions',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    debugPrint("✅ Platform Bank Details Seeded!");
+  } catch (e) {
+    debugPrint("❌ Error Seeding Bank Details: $e");
+  }
+}
+
+Future<void> seedShopTransactionHistory(String shopUid, String architectUid) async {
+  final db = FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database');
+  final batch = db.batch();
+  final now = DateTime.now();
+
+  // 1. SETTLED TRANSACTION (Historical - Green)
+  // Scenario: A project from 2 weeks ago that you already paid for.
+  final docRef1 = db.collection('transactions').doc();
+  batch.set(docRef1, {
+    "transactionId": docRef1.id,
+    "referralId": "ref_old_001",
+    "type": "commission_credit", // Standard type
+
+    "amount": 4500.00,
+    "currency": "INR",
+    "commissionPercent": 5.0,
+    "billAmount": 90000.0,
+
+    "fromUid": shopUid,
+    "toUid": architectUid,
+    "shopId": shopUid,
+    "architectId": architectUid,
+
+    "status": "settled", // <--- KEY: This means it's PAID
+    "createdAt": Timestamp.fromDate(now.subtract(const Duration(days: 14))),
+    "processedAt": Timestamp.fromDate(now.subtract(const Duration(days: 1))), // Paid yesterday
+    "clearedAt": Timestamp.fromDate(now.subtract(const Duration(days: 1))),
+
+    "meta": {
+      "description": "Commission: Gupta Kitchen",
+      "category": "modular_kitchen",
+    }
+  });
+
+  // 2. DUE TRANSACTION (Active - Red)
+  // Scenario: A recent project you accepted but haven't paid yet.
+  final docRef2 = db.collection('transactions').doc();
+  batch.set(docRef2, {
+    "transactionId": docRef2.id,
+    "referralId": "ref_new_002",
+    "type": "commission_credit",
+
+    "amount": 12000.00,
+    "currency": "INR",
+    "commissionPercent": 5.0,
+    "billAmount": 240000.0,
+
+    "fromUid": shopUid,
+    "toUid": architectUid,
+    "shopId": shopUid,
+    "architectId": architectUid,
+
+    "status": "due", // <--- KEY: This means it's PAYABLE
+    "createdAt": Timestamp.fromDate(now.subtract(const Duration(days: 2))),
+    "processedAt": null,
+    "clearedAt": null,
+
+    "meta": {
+      "description": "Commission: City Center Office",
+      "category": "tiles",
+    }
+  });
+
+  await batch.commit();
+  debugPrint("✅ Shop Transactions Seeded (1 Settled, 1 Due)!");
+}

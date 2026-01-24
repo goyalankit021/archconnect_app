@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/wallet_repository.dart';
-import 'shop_history_screen.dart';
+import 'ledger_history_screen.dart';
 import '../widgets/payout_bottom_sheet.dart';
 import 'payout_history_screen.dart';
 
@@ -210,9 +210,10 @@ class ArchitectWalletScreen extends ConsumerWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ShopHistoryScreen(
-                  shopId: ledger['shopId'],
-                  shopName: shopName,
+                builder: (context) => LedgerHistoryScreen(
+                  partnerId: ledger['shopId'], // Pass the Shop's ID
+                  partnerName: shopName,       // Pass the Shop's Name
+                  isArchitectView: true
                 ),
               ),
             );

@@ -99,7 +99,7 @@ class ShopRecentActivity extends ConsumerWidget {
     } else if (status == 'rejected') {
       icon = Icons.cancel_outlined;
       color = Colors.grey;
-      statusText = "Pass";
+      statusText = "Rejected";
     }
 
     return ListTile(
