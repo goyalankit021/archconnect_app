@@ -15,7 +15,6 @@ class StorageService {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-        // ✅ NEW: Compress image. 50 is a sweet spot (good quality, ~10x smaller size)
         imageQuality: 50,
       );
 

@@ -4,12 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
-// --- IMPORTS ---
 import '../../../core/theme/app_theme.dart';
 import '../../orders/screens/my_orders_screen.dart';
 import '../../profile/screens/shop_profile_screen.dart';
 import '../../notifications/screens/notification_screen.dart';
-import '../../../scripts/seed_notifications.dart';
 import '../../leads/screens/view_leads_screen.dart';
 import '../../dashboard/widgets/shop_recent_activity.dart';
 import '../../wallet/screens/shop_wallet_screen.dart';
@@ -32,23 +30,16 @@ class ShopHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. WATCH REAL STATS
     final statsAsync = ref.watch(shopStatsProvider);
 
-    // 2. Data Extraction
     final ownerName = userData['name'] ?? 'Partner';
-    final firstName = ownerName.split(' ')[0]; // "Ankit"
+    final firstName = ownerName.split(' ')[0];
     final firmName = userData['firm']?['name'] ?? 'My Shop';
-    final firmCity =
-        userData['firm']?['city'] ?? ''; // Added city context if needed
 
-    // 3. Helper for Shop Initials
     String getShopInitials(String name) {
       if (name.isEmpty) return "S";
       List<String> words = name.trim().split(' ');
-      if (words.length > 1) {
-        return "${words[0][0]}${words[1][0]}".toUpperCase();
-      }
+      if (words.length > 1) return "${words[0][0]}${words[1][0]}".toUpperCase();
       return name[0].toUpperCase();
     }
 
@@ -72,85 +63,39 @@ class ShopHome extends ConsumerWidget {
                       children: [
                         Text(
                           "Hello, $firstName",
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           firmName,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: kTextSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: kTextSecondary, fontWeight: FontWeight.w500),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-
-                  // Right: Actions
                   Row(
                     children: [
-                      // Repair Button (Seed Data)
                       IconButton(
-                        icon: const Icon(
-                          Icons.build_circle_outlined,
-                          color: Colors.orangeAccent,
-                          size: 20,
-                        ),
-                        tooltip: "Seed Data",
-                        onPressed: () async {
-                          // await seedReferralData(context);
-                          // await seedPlatformBankDetails(); // <--- ADD THIS LINE
-                          await seedShopTransactionHistory("82y5zZlbbGhbfruzIiXrgSJURxn2", "auGiIXMeywfOYR7PU4XfUnO1gLc2"); // <--- ADD THIS LINE
-                        },
-                      ),
-
-                      // Notification
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications_outlined,
-                          color: Colors.black,
-                        ),
+                        icon: const Icon(Icons.notifications_outlined, color: Colors.black),
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const NotificationScreen(),
-                            ),
-                          );
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen()));
                         },
                       ),
-
                       const SizedBox(width: 8),
-
-                      // Profile Avatar
                       InkWell(
                         onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ShopProfileScreen(),
-                            ),
-                          );
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const ShopProfileScreen()));
                         },
                         borderRadius: BorderRadius.circular(50),
                         child: CircleAvatar(
                           backgroundColor: Colors.green.shade50,
                           radius: 20,
-                          backgroundImage: userData['profilePhotoUrl'] != null
-                              ? NetworkImage(userData['profilePhotoUrl'])
-                              : null,
+                          backgroundImage: userData['profilePhotoUrl'] != null ? NetworkImage(userData['profilePhotoUrl']) : null,
                           child: userData['profilePhotoUrl'] == null
-                              ? Text(
-                                  shopInitials,
-                                  style: TextStyle(
-                                    color: Colors.green.shade800,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                )
+                              ? Text(shopInitials, style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold, fontSize: 14))
                               : null,
                         ),
                       ),
@@ -161,19 +106,10 @@ class ShopHome extends ConsumerWidget {
 
               const SizedBox(height: 30),
 
-              // --- 2. REVENUE CARD (CONNECTED TO REAL DATA) ---
-              // ... inside ShopHome build() method ...
-
-              // WRAP THE CONTAINER WITH GESTURE DETECTOR
+              // --- 2. REVENUE CARD ---
               GestureDetector(
                 onTap: () {
-                  // Navigate to the ShopWalletScreen we just created
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ShopWalletScreen(),
-                    ), // Ensure import is present
-                  );
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ShopWalletScreen()));
                 },
                 child: Container(
                   width: double.infinity,
@@ -185,92 +121,43 @@ class ShopHome extends ConsumerWidget {
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
+                    boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
                   ),
                   child: statsAsync.when(
                     data: (snapshot) {
-                      final data =
-                          snapshot.data() as Map<String, dynamic>? ?? {};
+                      final data = snapshot.data() as Map<String, dynamic>? ?? {};
+                      final double totalRevenue = (data['totalRevenue'] ?? 0).toDouble();
+                      final double totalDue = (data['totalDue'] ?? 0).toDouble();
+                      final double totalPaid = (data['totalPaid'] ?? 0).toDouble();
 
-                      // Fetch Real Numbers
-                      final double totalRevenue = (data['totalRevenue'] ?? 0)
-                          .toDouble();
-                      final double totalDue = (data['totalDue'] ?? 0)
-                          .toDouble();
-                      final double totalPaid = (data['totalPaid'] ?? 0)
-                          .toDouble();
-
-                      // Format Revenue
                       String displayRevenue = "₹0";
-                      if (totalRevenue >= 10000000)
-                        displayRevenue =
-                            "₹${(totalRevenue / 10000000).toStringAsFixed(2)}Cr";
-                      else if (totalRevenue >= 100000)
-                        displayRevenue =
-                            "₹${(totalRevenue / 100000).toStringAsFixed(2)}L";
-                      else
+                      if (totalRevenue >= 10000000) {
+                        displayRevenue = "₹${(totalRevenue / 10000000).toStringAsFixed(2)}Cr";
+                      } else if (totalRevenue >= 100000) {
+                        displayRevenue = "₹${(totalRevenue / 100000).toStringAsFixed(2)}L";
+                      } else {
                         displayRevenue = "₹${totalRevenue.toStringAsFixed(0)}";
+                      }
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "Total Revenue",
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                            ),
-                          ),
+                          const Text("Total Revenue", style: TextStyle(color: Colors.white70, fontSize: 14)),
                           const SizedBox(height: 8),
-                          Text(
-                            displayRevenue,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text(displayRevenue, style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 24),
-
-                          // Stats Row
                           Row(
                             children: [
-                              _buildStatItem(
-                                "Total Paid",
-                                "₹${totalPaid.toStringAsFixed(0)}",
-                                Icons.check_circle_outline,
-                              ),
-                              Container(
-                                height: 30,
-                                width: 1,
-                                color: Colors.white24,
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                              ),
-                              _buildStatItem(
-                                "Payable",
-                                "₹${totalDue.toStringAsFixed(0)}",
-                                Icons.pending_actions,
-                              ),
+                              _buildStatItem("Total Paid", "₹${totalPaid.toStringAsFixed(0)}", Icons.check_circle_outline),
+                              Container(height: 30, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 20)),
+                              _buildStatItem("Payable", "₹${totalDue.toStringAsFixed(0)}", Icons.pending_actions),
                             ],
                           ),
                         ],
                       );
                     },
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    ),
-                    error: (_, __) => const Text(
-                      "Stats Unavailable",
-                      style: TextStyle(color: Colors.white),
-                    ),
+                    loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+                    error: (_, __) => const Text("Stats Unavailable", style: TextStyle(color: Colors.white)),
                   ),
                 ),
               ),
@@ -287,12 +174,7 @@ class ShopHome extends ConsumerWidget {
                       icon: Icons.assignment_ind_outlined,
                       color: Colors.blue,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ViewLeadsScreen(),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const ViewLeadsScreen()));
                       },
                     ),
                   ),
@@ -304,12 +186,7 @@ class ShopHome extends ConsumerWidget {
                       icon: Icons.inventory_2_outlined,
                       color: Colors.orange,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MyOrdersScreen(),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const MyOrdersScreen()));
                       },
                     ),
                   ),
@@ -328,8 +205,6 @@ class ShopHome extends ConsumerWidget {
     );
   }
 
-  // --- HELPER WIDGETS ---
-
   Widget _buildStatItem(String label, String value, IconData icon) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,43 +213,21 @@ class ShopHome extends ConsumerWidget {
           children: [
             Icon(icon, color: Colors.white70, size: 14),
             const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ],
         ),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
-  Widget _buildActionCard(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -389,20 +242,11 @@ class ShopHome extends ConsumerWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
                   child: Icon(icon, color: color),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),

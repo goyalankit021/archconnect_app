@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/user_repository.dart';
 import '../../../core/authentication/auth_wrapper.dart';
+import '../../../core/services/logger_service.dart'; // ✅ Added Logger
 
 enum UserRole { architect, shopOwner }
 
@@ -24,6 +25,7 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
   final TextEditingController _stateController = TextEditingController();
 
   UserRole _selectedRole = UserRole.architect;
+  bool _isLoading = false; // ✅ FIX: Added loading state to prevent double-clicks
 
   @override
   void dispose() {
@@ -36,17 +38,14 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
 
   void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
-      try {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Creating Enterprise Profile...")),
-        );
+      setState(() => _isLoading = true); // Lock button
 
+      try {
         final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser == null) return;
+        if (currentUser == null) throw Exception("Authentication lost. Please log in again.");
 
         final roleString = _selectedRole == UserRole.architect ? 'architect' : 'shop';
 
-        // CALL REPO
         await ref.read(userRepositoryProvider).saveUserProfile(
           user: currentUser,
           name: _nameController.text.trim(),
@@ -56,18 +55,29 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
           state: _stateController.text.trim(),
         );
 
+        // ✅ LOG IT: Profile Creation
+        ref.read(loggerServiceProvider).logAudit(
+          entityType: 'auth',
+          entityId: currentUser.uid,
+          action: 'create_profile',
+          description: 'New user completed profile setup as $roleString',
+          afterData: {'role': roleString, 'city': _cityController.text.trim()},
+        );
+
         if (!mounted) return;
 
-        // SUCCESS
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const AuthWrapper()),
               (route) => false,
         );
 
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")),
-        );
+      } catch (e, s) {
+        ref.read(loggerServiceProvider).logError(e, s, reason: "Profile Creation Failed");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false); // Unlock button
       }
     }
   }
@@ -93,7 +103,6 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Header Info
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -122,7 +131,6 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
                 Text("Personal Details", style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
 
-                // Name
                 TextFormField(
                   controller: _nameController,
                   textCapitalization: TextCapitalization.words,
@@ -131,7 +139,6 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Firm
                 TextFormField(
                   controller: _firmController,
                   textCapitalization: TextCapitalization.words,
@@ -140,7 +147,6 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Location Row
                 Row(
                   children: [
                     Expanded(
@@ -187,8 +193,10 @@ class _CreateProfileScreenState extends ConsumerState<CreateProfileScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _onSubmit,
-                    child: const Text("COMPLETE REGISTRATION"),
+                    onPressed: _isLoading ? null : _onSubmit,
+                    child: _isLoading
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text("COMPLETE REGISTRATION"),
                   ),
                 ),
                 const SizedBox(height: 20),

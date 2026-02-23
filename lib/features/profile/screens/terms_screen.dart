@@ -38,7 +38,8 @@ class TermsScreen extends StatelessWidget {
             _buildParagraph(
                 "• Architects must provide genuine client leads.\n"
                     "• Shops must accurately log bill amounts and honor commission agreements.\n"
-                    "• Any disputes regarding amounts are to be resolved between parties."
+                    "• Any disputes regarding amounts are to be resolved between parties.\n"
+                    "• Architects can withdraw the commission only when shop transfers commission."
             ),
 
             _buildSectionTitle("5. Data Privacy"),

@@ -1,9 +1,10 @@
-import 'dart:async'; // Required for the Timer
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pinput/pinput.dart';
 import '../../../core/theme/app_theme.dart';
 import '../logic/auth_controller.dart';
+import '../../../core/services/logger_service.dart'; // ✅ Added Logger
 
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String phoneNumber;
@@ -16,25 +17,23 @@ class OtpVerificationScreen extends ConsumerStatefulWidget {
 class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   final TextEditingController _otpController = TextEditingController();
 
-  // --- Timer Variables ---
   Timer? _timer;
-  int _start = 30; // 30 seconds countdown
+  int _start = 30;
   bool _isResendAvailable = false;
 
   @override
   void initState() {
     super.initState();
-    startTimer(); // Start countdown as soon as screen loads
+    startTimer();
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // Always cancel timers to prevent memory leaks
+    _timer?.cancel();
     _otpController.dispose();
     super.dispose();
   }
 
-  // --- Timer Logic ---
   void startTimer() {
     setState(() {
       _isResendAvailable = false;
@@ -46,7 +45,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       if (_start == 0) {
         setState(() {
           timer.cancel();
-          _isResendAvailable = true; // Enable the button!
+          _isResendAvailable = true;
         });
       } else {
         setState(() {
@@ -56,15 +55,21 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     });
   }
 
-  // --- Resend Action ---
   void _resendOtp() {
-    // 1. Trigger the logic again
+    // ✅ LOG IT: Track SMS Quota usage
+    ref.read(loggerServiceProvider).logAudit(
+        entityType: 'auth',
+        entityId: widget.phoneNumber,
+        action: 'resend_otp',
+        description: 'User requested a new OTP',
+        severity: 'info'
+    );
+
     ref.read(authControllerProvider).sendOtp(
         context: context,
         phoneNumber: widget.phoneNumber
     );
 
-    // 2. Restart the timer
     startTimer();
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -91,7 +96,6 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     final size = MediaQuery.of(context).size;
     final textTheme = Theme.of(context).textTheme;
 
-    // (Theme variables same as before...)
     final defaultPinTheme = PinTheme(
       width: 50,
       height: 50,
@@ -133,8 +137,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
               ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
                   child: Text("Edit Phone Number", style: TextStyle(color: kPrimaryVariant, fontWeight: FontWeight.w600)),
                 ),
               ),
@@ -146,34 +150,29 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                   controller: _otpController,
                   defaultPinTheme: defaultPinTheme,
                   focusedPinTheme: focusedPinTheme,
-                  onCompleted: (pin) => _verifyOtp(),
+                  onCompleted: (pin) => _verifyOtp(), // Auto-verify on 6th digit
                 ),
               ),
 
               SizedBox(height: size.height * 0.05),
 
-              // --- 4. Dynamic Resend Timer Section ---
               Center(
                 child: _isResendAvailable
                     ? TextButton(
                   onPressed: _resendOtp,
-                  child: Text(
+                  child: const Text(
                     "Resend OTP",
-                    style: TextStyle(
-                      color: kPrimaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 )
                     : RichText(
                   text: TextSpan(
                     text: "Didn't receive the code? ",
-                    style: TextStyle(color: kTextSecondary, fontFamily: 'Poppins'),
+                    style: const TextStyle(color: kTextSecondary, fontFamily: 'Poppins'),
                     children: [
                       TextSpan(
                         text: "Resend in ${_start}s",
-                        style: TextStyle(color: kTextPrimary, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: kTextPrimary, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),

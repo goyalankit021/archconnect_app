@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/data/user_provider.dart';
+import '../../auth/data/user_repository.dart';
 import '../../home/data/shop_repository.dart';
-import 'dart:io';
 import '../../../core/services/storage_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'terms_screen.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../auth/screens/login_screen.dart'; // Required for Redirect
+import '../../auth/screens/login_screen.dart';
 
 // 1. PROVIDER FOR SHOP DATA
 final myShopStreamProvider =
@@ -29,7 +29,251 @@ class ShopProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
-  // --- 1. SETTINGS SHEET (Reused Logic) ---
+  // --- HANDLE KYC UPLOAD (Unified Logic) ---
+  Future<void> _handleKycUpload(String uid, String docType) async {
+    // docType: 'shopBoard' or 'gst'
+    final file = await ref
+        .read(storageServiceProvider)
+        .pickImage(fromCamera: false);
+    if (file == null) return;
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Uploading Document...")));
+
+    try {
+      // 1. Storage Path: Unified with Architects
+      // Path: users/{uid}/kyc/{docType}.jpg
+      final path = 'users/$uid/kyc/$docType.jpg';
+
+      final url = await ref
+          .read(storageServiceProvider)
+          .uploadFile(file: file, path: path);
+
+      if (url != null) {
+        // 2. Update DB: Use the existing UserRepository function
+        // This updates the 'users' collection
+        await ref
+            .read(userRepositoryProvider)
+            .uploadKycDocument(uid: uid, docType: docType, url: url);
+
+        // ✅ TODO: Trigger Notification to Admin Panel
+        // Future feature: Send FCM or create a 'notifications' doc for Admin
+        // print("TODO: Notify Admin about new KYC doc from $uid");
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Document Uploaded!")));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Upload Error: $e")));
+    }
+  }
+
+  // --- 3. REDESIGNED KYC TAB ---
+  Widget _buildKycTab(Map<String, dynamic> userData, String uid, String status) {
+    final docs = userData['kycDocuments'] as Map<String, dynamic>? ?? {};
+    final shopBoardUrl = docs['shopBoard'];
+    final gstUrl = docs['gst'];
+
+    // Lock if verified (Cannot edit anymore)
+    final isLocked = status == 'verified';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Verification Documents", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text("Upload clear photos to enable your account.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 24),
+
+          // 1. Shop Board
+          _buildPrettyKycCard(
+            title: "Shop Board Photo",
+            subtitle: "Front view with name visible",
+            uploadedUrl: shopBoardUrl,
+            status: status,
+            onTap: isLocked ? null : () => _handleKycUpload(uid, 'shopBoard'),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 2. GST / Proof
+          _buildPrettyKycCard(
+            title: "Business Proof (GST)",
+            subtitle: "Government registration doc",
+            uploadedUrl: gstUrl,
+            status: status,
+            onTap: isLocked ? null : () => _handleKycUpload(uid, 'gst'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- PRETTY KYC CARD ---
+  Widget _buildPrettyKycCard({
+    required String title,
+    required String subtitle,
+    String? uploadedUrl,
+    required String status,
+    VoidCallback? onTap,
+  }) {
+    Color iconColor = Colors.grey;
+    IconData icon = Icons.cloud_upload_outlined;
+
+    if (uploadedUrl != null) {
+      if (status == 'verified') {
+        icon = Icons.check_circle;
+        iconColor = Colors.green;
+      } else if (status == 'verification_pending') {
+        icon = Icons.hourglass_top; // Show it's waiting
+        iconColor = Colors.blue;
+      } else if (status == 'rejected') {
+        icon = Icons.error;
+        iconColor = Colors.red;
+      } else {
+        // Just uploaded locally but not handled yet
+        icon = Icons.check_circle_outline;
+        iconColor = Colors.orange;
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: iconColor.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(Icons.description, color: iconColor, size: 20),
+            ),
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            trailing: IconButton(
+              icon: Icon(icon, color: iconColor),
+              onPressed: onTap,
+            ),
+            onTap: onTap,
+          ),
+
+          // Show Image Preview if exists
+          if (uploadedUrl != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  uploadedUrl,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 180,
+                      color: Colors.grey.shade100,
+                      child: const Center(child: Icon(Icons.image, color: Colors.grey)),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- HELPER: ALERT BANNER ---
+  Widget _buildAlertBanner(Color color, IconData icon, String title, String subtitle) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(subtitle, style: const TextStyle(color: Colors.white, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 1. HANDLE PHOTO UPLOAD (FIXED) ---
+  Future<void> _handlePhotoUpload(String uid) async {
+    final file = await ref
+        .read(storageServiceProvider)
+        .pickImage(fromCamera: false);
+
+    if (file != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Uploading Logo...")));
+
+      try {
+        // Upload to Storage
+        final url = await ref
+            .read(storageServiceProvider)
+            .uploadFile(file: file, path: 'users/$uid/profile.jpg');
+
+        if (url != null) {
+          // Update Database
+          await ref.read(shopRepositoryProvider).updateShopPhoto(uid, url);
+          await ref.read(userRepositoryProvider).updateProfilePhoto(uid, url);
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Shop Logo Updated!")));
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
+  }
+
+  // --- 2. SETTINGS SHEET ---
   void _showSettingsSheet() {
     showModalBottomSheet(
       context: context,
@@ -52,90 +296,28 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 1. Support
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.support_agent,
-                    color: Colors.blue,
-                    size: 20,
-                  ),
-                ),
-                title: const Text(
-                  "Contact Support",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                trailing: const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 14,
-                  color: Colors.grey,
-                ),
-                onTap: () {
+              _buildSettingsTile(
+                Icons.support_agent,
+                Colors.blue,
+                "Contact Support",
+                () {
                   Navigator.pop(context);
                   _showContactSupportDialog();
                 },
               ),
 
-              // 2. Share
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.share,
-                    color: Colors.orange,
-                    size: 20,
-                  ),
-                ),
-                title: const Text(
-                  "Share App",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                trailing: const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 14,
-                  color: Colors.grey,
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  Share.share(
-                    'Join ArchConnect! Grow your business with verified Architects.\n\nDownload: https://archconnect.app',
-                  );
-                },
-              ),
+              _buildSettingsTile(Icons.share, Colors.orange, "Share App", () {
+                Navigator.pop(context);
+                Share.share(
+                  'Join ArchConnect! Grow your business with verified Architects.\n\nDownload: https://archconnect.app',
+                );
+              }),
 
-              // 3. Terms
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.description,
-                    color: Colors.purple,
-                    size: 20,
-                  ),
-                ),
-                title: const Text(
-                  "Terms & Services",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                trailing: const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 14,
-                  color: Colors.grey,
-                ),
-                onTap: () {
+              _buildSettingsTile(
+                Icons.description,
+                Colors.purple,
+                "Terms & Services",
+                () {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
@@ -146,10 +328,8 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 },
               ),
 
-              // ✅ FIX: Removed SizedBox, changed color to shade300 (Visible but Soft)
               Divider(height: 24, thickness: 1, color: Colors.grey.shade300),
 
-              // 4. Logout
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -188,7 +368,35 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     );
   }
 
-  // --- 2. CONTACT SUPPORT DIALOG ---
+  Widget _buildSettingsTile(
+    IconData icon,
+    Color color,
+    String title,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      trailing: const Icon(
+        Icons.arrow_forward_ios,
+        size: 14,
+        color: Colors.grey,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  // --- 3. CONTACT SUPPORT DIALOG (FIXED EMAIL) ---
   void _showContactSupportDialog() {
     showDialog(
       context: context,
@@ -215,6 +423,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
               style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 20),
+
             _buildContactTile(
               icon: Icons.phone,
               color: Colors.green,
@@ -226,17 +435,34 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
               },
             ),
             const SizedBox(height: 12),
+
+            // ✅ FIXED EMAIL LOGIC
             _buildContactTile(
               icon: Icons.email,
               color: Colors.blue,
               title: "Email Us",
               subtitle: "archconnect021@gmail.com",
               onTap: () async {
-                final Uri launchUri = Uri(
+                final Uri emailLaunchUri = Uri(
                   scheme: 'mailto',
                   path: 'archconnect021@gmail.com',
                 );
-                if (await canLaunchUrl(launchUri)) await launchUrl(launchUri);
+
+                if (await canLaunchUrl(emailLaunchUri)) {
+                  await launchUrl(emailLaunchUri);
+                } else {
+                  // Fallback for Android 11+ if manifest not updated, trying generic view
+                  try {
+                    await launchUrl(
+                      emailLaunchUri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("No email app found")),
+                    );
+                  }
+                }
               },
             ),
           ],
@@ -302,21 +528,16 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     );
   }
 
-  // --- ROBUST EDIT SHEET ---
+  // --- 4. RESTORED: Edit Overview Sheet ---
   void _showEditOverviewSheet(
     String uid,
     Map<String, dynamic> data,
     String currentEmail,
   ) {
-    // 1. Setup Controllers
     final descCtrl = TextEditingController(text: data['description']);
     final whatsappCtrl = TextEditingController(text: data['whatsapp']);
-    final emailCtrl = TextEditingController(
-      text: currentEmail,
-    ); // <--- NEW CONTROLLER
+    final emailCtrl = TextEditingController(text: currentEmail);
 
-    // 2. Setup Lists (Copy existing data)
-    // We use standard Dart Lists so we can modify them
     List<String> categories = List<String>.from(data['categories'] ?? []);
     List<String> brands = List<String>.from(data['brands'] ?? []);
 
@@ -330,7 +551,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        // StatefulBuilder is CRITICAL here to update the sheet UI when adding tags
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setSheetState) {
             return Padding(
@@ -341,7 +561,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 top: 24,
               ),
               child: SingleChildScrollView(
-                // Added scroll view for safety
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,20 +572,15 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // Description
                     TextField(
                       controller: descCtrl,
                       maxLines: 3,
                       decoration: const InputDecoration(
                         labelText: "Shop Description",
-                        alignLabelWithHint: true,
                         prefixIcon: Icon(Icons.description),
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // WhatsApp
                     TextField(
                       controller: whatsappCtrl,
                       keyboardType: TextInputType.phone,
@@ -376,7 +590,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // ✅ NEW: Email Field
                     TextField(
                       controller: emailCtrl,
                       keyboardType: TextInputType.emailAddress,
@@ -387,7 +600,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // --- CATEGORIES EDITOR ---
+                    // Categories
                     Text(
                       "Categories",
                       style: TextStyle(
@@ -395,7 +608,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                         color: kTextSecondary,
                       ),
                     ),
-                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       children: categories
@@ -405,7 +617,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                               backgroundColor: Colors.green[50],
                               onDeleted: () =>
                                   setSheetState(() => categories.remove(cat)),
-                              deleteIconColor: Colors.red,
                             ),
                           )
                           .toList(),
@@ -416,7 +627,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                           child: TextField(
                             controller: categoryInputCtrl,
                             decoration: const InputDecoration(
-                              hintText: "Add Category (e.g. Tiles)",
+                              hintText: "Add Category",
                               isDense: true,
                             ),
                           ),
@@ -427,21 +638,21 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                             color: Colors.green,
                           ),
                           onPressed: () {
-                            if (categoryInputCtrl.text.isNotEmpty) {
+                            if (categoryInputCtrl.text.isNotEmpty)
                               setSheetState(() {
                                 categories.add(
                                   categoryInputCtrl.text.trim().toLowerCase(),
-                                ); // Lowercase for search
+                                );
                                 categoryInputCtrl.clear();
                               });
-                            }
                           },
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 20),
 
-                    // --- BRANDS EDITOR ---
+                    // Brands
                     Text(
                       "Brands Deal In",
                       style: TextStyle(
@@ -449,7 +660,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                         color: kTextSecondary,
                       ),
                     ),
-                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       children: brands
@@ -459,7 +669,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                               backgroundColor: Colors.blue[50],
                               onDeleted: () =>
                                   setSheetState(() => brands.remove(brand)),
-                              deleteIconColor: Colors.red,
                             ),
                           )
                           .toList(),
@@ -470,7 +679,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                           child: TextField(
                             controller: brandInputCtrl,
                             decoration: const InputDecoration(
-                              hintText: "Add Brand (e.g. Kajaria)",
+                              hintText: "Add Brand",
                               isDense: true,
                             ),
                           ),
@@ -493,16 +702,11 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                     ),
 
                     const SizedBox(height: 30),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () async {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Saving Changes...")),
-                          );
-
                           await ref
                               .read(shopRepositoryProvider)
                               .updateShopOverview(
@@ -510,12 +714,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                                 description: descCtrl.text.trim(),
                                 whatsapp: whatsappCtrl.text.trim(),
                                 categories: categories,
-                                // Pass the list
                                 brands: brands,
-                                // Pass the list
                                 email: emailCtrl.text.trim(),
                               );
-
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Shop Info Updated!")),
                           );
@@ -534,10 +735,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     );
   }
 
-  // --- EDIT ADDRESS SHEET ---
+  // --- 5. RESTORED: Edit Address Sheet ---
   void _showEditAddressSheet(String uid, Map<String, dynamic> data) {
     final address = data['address'] ?? {};
-
     final streetCtrl = TextEditingController(text: address['street']);
     final cityCtrl = TextEditingController(text: address['city']);
     final stateCtrl = TextEditingController(text: address['state']);
@@ -568,20 +768,15 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-
-              // Street Address (Multi-line)
               TextField(
                 controller: streetCtrl,
                 maxLines: 2,
                 decoration: const InputDecoration(
-                  labelText: "Street Address / Landmark",
-                  alignLabelWithHint: true,
+                  labelText: "Street Address",
                   prefixIcon: Icon(Icons.add_road),
                 ),
               ),
               const SizedBox(height: 16),
-
-              // City & State
               Row(
                 children: [
                   Expanded(
@@ -606,8 +801,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-
-              // Pincode
               TextField(
                 controller: pinCtrl,
                 keyboardType: TextInputType.number,
@@ -618,18 +811,12 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                   counterText: "",
                 ),
               ),
-
               const SizedBox(height: 30),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Updating Address...")),
-                    );
-
                     await ref
                         .read(shopRepositoryProvider)
                         .updateShopAddress(
@@ -639,7 +826,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                           state: stateCtrl.text.trim(),
                           pincode: pinCtrl.text.trim(),
                         );
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Address Updated!")),
                     );
@@ -655,43 +841,157 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     );
   }
 
-  // --- HANDLE PHOTO UPLOAD ---
-  Future<void> _handlePhotoUpload(String uid) async {
-    // 1. Pick Image (Gallery)
+  // --- 6. RESTORED: Edit Hours Sheet ---
+  void _showEditHoursSheet(String uid, Map<String, dynamic> currentHours) {
+    String formatTime(TimeOfDay t) =>
+        "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}";
+    Future<String?> pickTime(BuildContext context, String? current) async {
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: current != null
+            ? TimeOfDay(
+                hour: int.parse(current.split(":")[0]),
+                minute: int.parse(current.split(":")[1]),
+              )
+            : TimeOfDay.now(),
+      );
+      return picked != null ? formatTime(picked) : null;
+    }
+
+    Map<String, dynamic> newHours = Map.from(currentHours);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Edit Business Hours",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDayRow(
+                    context,
+                    "Weekdays",
+                    "monday",
+                    newHours,
+                    setSheetState,
+                    pickTime,
+                  ),
+                  const Divider(),
+                  _buildDayRow(
+                    context,
+                    "Sunday",
+                    "sunday",
+                    newHours,
+                    setSheetState,
+                    pickTime,
+                  ),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await ref
+                            .read(shopRepositoryProvider)
+                            .updateBusinessHours(
+                              uid: uid,
+                              businessHours: newHours,
+                            );
+                      },
+                      child: const Text("SAVE HOURS"),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDayRow(
+    BuildContext context,
+    String label,
+    String key,
+    Map<String, dynamic> hours,
+    StateSetter setState,
+    Function pickTime,
+  ) {
+    final dayData =
+        hours[key] as Map<String, dynamic>? ??
+        {"open": "09:00", "close": "20:00"};
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        TextButton(
+          onPressed: () async {
+            final t = await pickTime(context, dayData['open']);
+            if (t != null) setState(() => hours[key] = {...dayData, "open": t});
+          },
+          child: Text(dayData['open'], style: const TextStyle(fontSize: 16)),
+        ),
+        const Text("-"),
+        TextButton(
+          onPressed: () async {
+            final t = await pickTime(context, dayData['close']);
+            if (t != null)
+              setState(() => hours[key] = {...dayData, "close": t});
+          },
+          child: Text(dayData['close'], style: const TextStyle(fontSize: 16)),
+        ),
+      ],
+    );
+  }
+
+  // --- 7. RESTORED: Gallery Upload ---
+  Future<void> _handleGalleryUpload(String uid) async {
     final file = await ref
         .read(storageServiceProvider)
         .pickImage(fromCamera: false);
-
-    if (file != null) {
-      // 2. Show Loading
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Uploading Logo...")));
-
-      try {
-        // 3. Upload to Storage
-        final url = await ref
-            .read(storageServiceProvider)
-            .uploadFile(file: file, path: 'shops/$uid/profile.jpg');
-
-        if (url != null) {
-          // 4. Save URL to Database
-          await ref.read(shopRepositoryProvider).updateShopPhoto(uid, url);
-
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("Shop Logo Updated!")));
-        }
-      } catch (e) {
+    if (file == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Uploading Image...")));
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final url = await ref
+          .read(storageServiceProvider)
+          .uploadFile(
+            file: file,
+            path: 'shops/$uid/gallery/img_$timestamp.jpg',
+          );
+      if (url != null) {
+        await ref.read(shopRepositoryProvider).addGalleryImage(uid, url);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        ).showSnackBar(const SnackBar(content: Text("Image Added!")));
       }
+    } catch (e) {
+      print(e);
     }
   }
 
+  // --- 8. MAIN BUILD METHOD ---
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(userProfileStreamProvider);
@@ -703,8 +1003,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
 
         final uid = userData['uid'];
         final userEmail = userData['email'] ?? "";
-
-        // KYC & Profile Status Checks
         final kycStatus = userData['kycStatus'] ?? 'pending';
         final isProfileComplete = userData['isProfileComplete'] ?? false;
 
@@ -715,15 +1013,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
             final shopData = shopSnapshot.data() ?? {};
             final name = shopData['name'] ?? "My Shop";
             final city = shopData['address']?['city'] ?? "Location";
-            // 1. EXTRACT STATUS FLAGS
-            final bool isProfileComplete =
-                userData['isProfileComplete'] ?? false;
-            final String kycStatus =
-                userData['kycStatus'] ??
-                'pending'; // pending, verified, rejected, not_uploaded
 
             return DefaultTabController(
-              length: 3,
+              length: 4,
               child: Scaffold(
                 backgroundColor: kBackgroundColor,
                 appBar: AppBar(
@@ -732,7 +1024,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                   foregroundColor: Colors.white,
                   centerTitle: true,
                   actions: [
-                    // ⚙️ SETTINGS ICON
                     IconButton(
                       icon: const Icon(Icons.settings),
                       onPressed: _showSettingsSheet,
@@ -752,34 +1043,46 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                       ),
                       child: Column(
                         children: [
-                          // ✅ SMART ALERT SYSTEM (Only shows the highest priority issue)
-                          if (!isProfileComplete)
+                          // ✅ UPDATED STATUS BANNERS
+                          if (kycStatus == 'pending')
                             _buildAlertBanner(
-                              color: Colors.redAccent,
-                              icon: Icons.edit_note,
-                              title: "Setup Required",
-                              subtitle:
-                                  "Complete your profile to receive leads.",
+                              Colors.orange,
+                              Icons.cloud_upload,
+                              "KYC Pending",
+                              "Upload documents to get verified.",
+                            )
+                          else if (!isProfileComplete)
+                            _buildAlertBanner(
+                              Colors.redAccent,
+                              Icons.edit_note,
+                              "Setup Required",
+                              "Complete your profile details.",
+                            )
+                          else if (kycStatus == 'verification_pending')
+                            _buildAlertBanner(
+                              Colors.blue,
+                              Icons.hourglass_top,
+                              "Under Review",
+                              "Admin is verifying your documents.",
                             )
                           else if (kycStatus == 'rejected')
                             _buildAlertBanner(
-                              color: Colors.red,
-                              icon: Icons.error_outline,
-                              title: "KYC Rejected",
-                              subtitle: "Please re-upload valid documents.",
+                              Colors.red,
+                              Icons.error_outline,
+                              "KYC Rejected",
+                              "Please re-upload valid documents.",
                             )
-                          else if (kycStatus == 'pending' ||
-                              kycStatus == 'not_uploaded')
+                          else if (kycStatus == 'verified')
                             _buildAlertBanner(
-                              color: Colors.orange,
-                              icon: Icons.hourglass_top,
-                              title: "Verification Pending",
-                              subtitle: "Admin is reviewing your details.",
+                              Colors.green,
+                              Icons.verified,
+                              "Verified Shop",
+                              "You are fully approved!",
                             ),
 
                           // AVATAR
                           GestureDetector(
-                            // onTap: () => _handlePhotoUpload(uid), // Uncomment to enable upload
+                            onTap: () => _handlePhotoUpload(uid),
                             child: Stack(
                               children: [
                                 CircleAvatar(
@@ -895,6 +1198,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                           Tab(text: "Overview"),
                           Tab(text: "Address"),
                           Tab(text: "Operations"),
+                          Tab(text: "KYC Docs"),
                         ],
                       ),
                     ),
@@ -903,10 +1207,10 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                     Expanded(
                       child: TabBarView(
                         children: [
-                          // Keep your existing tab builders
                           _buildOverviewTab(shopData, uid, userEmail),
                           _buildAddressTab(shopData, uid),
                           _buildOperationsTab(shopData, uid),
+                          _buildKycTab(userData, uid, kycStatus),
                         ],
                       ),
                     ),
@@ -926,21 +1230,21 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     );
   }
 
+  // --- 9. RESTORED: Tab Content Builders ---
   Widget _buildOverviewTab(
     Map<String, dynamic> data,
     String uid,
     String email,
   ) {
     final categories = List<dynamic>.from(data['categories'] ?? []);
-    final commission =
-        data['commissionDefaultPercent'] ?? 0.0; // Default if missing
+    final commission = data['commissionDefaultPercent'] ?? 0.0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ NEW: Commission Badge
+          // Commission Badge
           Container(
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.only(bottom: 24),
@@ -992,7 +1296,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
               ],
             ),
           ),
-          // About Section
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1014,7 +1318,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Contact Info
           _buildInfoTile("Phone", data['phone'] ?? "", Icons.phone),
           _buildInfoTile(
             "Email",
@@ -1028,8 +1331,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
           ),
 
           const SizedBox(height: 24),
-
-          // Categories
           Text(
             "Categories",
             style: Theme.of(
@@ -1057,8 +1358,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
           ),
 
           const SizedBox(height: 24),
-
-          // Brands (NEW)
           Text(
             "Brands",
             style: Theme.of(
@@ -1089,56 +1388,16 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     );
   }
 
-  Widget _buildInfoTile(String label, String value, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: kSurfaceColor,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: kTextSecondary, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildAddressTab(Map<String, dynamic> data, String uid) {
     final address = data['address'] ?? {};
-    final street = address['street'] ?? "No street address provided";
-    final city = address['city'] ?? "";
-    final state = address['state'] ?? "";
-    final pincode = address['pincode'] ?? "";
-
-    final fullAddress = "$street\n$city, $state - $pincode";
+    final fullAddress =
+        "${address['street'] ?? 'No street'}\n${address['city'] ?? ''}, ${address['state'] ?? ''} - ${address['pincode'] ?? ''}";
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1156,8 +1415,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
-
-          // Address Card
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -1205,10 +1462,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 24),
-
-          // Placeholder for Map Integration
           Container(
             height: 150,
             width: double.infinity,
@@ -1234,175 +1488,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     );
   }
 
-  // --- EDIT HOURS SHEET ---
-  void _showEditHoursSheet(String uid, Map<String, dynamic> currentHours) {
-    // Helper to format TimeOfDay to String (e.g., "09:00")
-    String formatTime(TimeOfDay t) {
-      final hour = t.hour.toString().padLeft(2, '0');
-      final minute = t.minute.toString().padLeft(2, '0');
-      return "$hour:$minute";
-    }
-
-    // Helper to pick time
-    Future<String?> pickTime(BuildContext context, String? current) async {
-      final now = TimeOfDay.now();
-      final picked = await showTimePicker(
-        context: context,
-        initialTime: current != null
-            ? TimeOfDay(
-                hour: int.parse(current.split(":")[0]),
-                minute: int.parse(current.split(":")[1]),
-              )
-            : now,
-      );
-      if (picked != null) return formatTime(picked);
-      return null;
-    }
-
-    // State for the sheet
-    Map<String, dynamic> newHours = Map.from(currentHours);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Edit Business Hours",
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // We simplify to 2 Groups for MVP: Weekdays & Sunday
-                  _buildDayRow(
-                    context,
-                    "Weekdays (Mon-Sat)",
-                    "monday",
-                    newHours,
-                    setSheetState,
-                    pickTime,
-                  ),
-                  const Divider(),
-                  _buildDayRow(
-                    context,
-                    "Sunday",
-                    "sunday",
-                    newHours,
-                    setSheetState,
-                    pickTime,
-                  ),
-
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        // Logic: Copy 'monday' settings to tue-sat for consistency if needed
-                        // For now, we save strictly what was edited
-                        await ref
-                            .read(shopRepositoryProvider)
-                            .updateBusinessHours(
-                              uid: uid,
-                              businessHours: newHours,
-                            );
-                      },
-                      child: const Text("SAVE HOURS"),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Widget for a single day row in the sheet
-  Widget _buildDayRow(
-    BuildContext context,
-    String label,
-    String key,
-    Map<String, dynamic> hours,
-    StateSetter setState,
-    Function pickTime,
-  ) {
-    final dayData =
-        hours[key] as Map<String, dynamic>? ??
-        {"open": "09:00", "close": "20:00"};
-    final open = dayData['open'];
-    final close = dayData['close'];
-
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        TextButton(
-          onPressed: () async {
-            final t = await pickTime(context, open);
-            if (t != null) setState(() => hours[key] = {...dayData, "open": t});
-          },
-          child: Text(open, style: const TextStyle(fontSize: 16)),
-        ),
-        const Text("-"),
-        TextButton(
-          onPressed: () async {
-            final t = await pickTime(context, close);
-            if (t != null)
-              setState(() => hours[key] = {...dayData, "close": t});
-          },
-          child: Text(close, style: const TextStyle(fontSize: 16)),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _handleGalleryUpload(String uid) async {
-    final file = await ref
-        .read(storageServiceProvider)
-        .pickImage(fromCamera: false);
-    if (file == null) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Uploading Image...")));
-
-    // ✅ NEW: Structured Path: shops/{uid}/gallery/image_123.jpg
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final path = 'shops/$uid/gallery/img_$timestamp.jpg';
-
-    try {
-      final url = await ref
-          .read(storageServiceProvider)
-          .uploadFile(file: file, path: path);
-      if (url != null) {
-        await ref.read(shopRepositoryProvider).addGalleryImage(uid, url);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Image Added!")));
-      }
-    } catch (e) {
-      print(e);
-    }
-  }
-
   Widget _buildOperationsTab(Map<String, dynamic> data, String uid) {
     final businessHours = data['businessHours'] as Map<String, dynamic>? ?? {};
     final gallery = List<String>.from(data['galleryImages'] ?? []);
@@ -1412,8 +1497,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- BUSINESS HOURS ---
-          // --- BUSINESS HOURS ---
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1444,10 +1527,8 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 30),
 
-          // --- GALLERY ---
           Text(
             "Shop Gallery",
             style: Theme.of(
@@ -1455,7 +1536,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1469,19 +1549,14 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 ? gallery.length
                 : gallery.length + 1,
             itemBuilder: (context, index) {
-              final isLimitReached = gallery.length >= 4;
-              // The "Add Button" is the first item
-              if (!isLimitReached && index == 0) {
+              if (gallery.length < 4 && index == 0) {
                 return GestureDetector(
                   onTap: () => _handleGalleryUpload(uid),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        style: BorderStyle.solid,
-                      ),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1500,12 +1575,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                   ),
                 );
               }
-
-              // ✅ LOGIC: Get Image URL
-              // If limit not reached, array starts at index-1.
-              // If limit reached, array starts at index.
-              final url = isLimitReached ? gallery[index] : gallery[index - 1];
-
+              final url = (gallery.length < 4)
+                  ? gallery[index - 1]
+                  : gallery[index];
               return Stack(
                 fit: StackFit.expand,
                 children: [
@@ -1517,14 +1589,12 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                     top: 4,
                     right: 4,
                     child: GestureDetector(
-                      onTap: () async {
-                        await ref
-                            .read(shopRepositoryProvider)
-                            .removeGalleryImage(uid, url);
-                      },
+                      onTap: () => ref
+                          .read(shopRepositoryProvider)
+                          .removeGalleryImage(uid, url),
                       child: Container(
                         padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
                         ),
@@ -1546,11 +1616,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
   }
 
   Widget _buildDisplayHourRow(String label, dynamic data) {
-    // Data might be null, or a map {open:..., close:...}
     final map = data as Map<String, dynamic>?;
-    final timeStr = map != null ? "${map['open']} - ${map['close']}" : "Closed";
-    final color = map != null ? kTextPrimary : Colors.red;
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1558,65 +1624,46 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
         children: [
           Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
           Text(
-            timeStr,
-            style: TextStyle(fontWeight: FontWeight.bold, color: color),
+            map != null ? "${map['open']} - ${map['close']}" : "Closed",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: map != null ? kTextPrimary : Colors.red,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // --- HELPER FOR ALERTS ---
-  Widget _buildAlertBanner({
-    required Color color,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color, // Solid color for high visibility
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+  Widget _buildInfoTile(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
+              color: kSurfaceColor,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(icon, color: kTextSecondary, size: 20),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

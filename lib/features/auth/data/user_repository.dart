@@ -2,20 +2,27 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/logger_service.dart'; // ✅ Added Logger Service
 
+// ✅ FIX: Injected the Logger Service into the Repository
 final userRepositoryProvider = Provider((ref) {
+  final logger = ref.read(loggerServiceProvider);
   return UserRepository(
-      FirebaseFirestore.instanceFor(
-          app: Firebase.app(),
-          databaseId: 'arch-connect-database'
-      )
+    FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: 'arch-connect-database'
+    ),
+    logger,
   );
 });
 
 class UserRepository {
   final FirebaseFirestore _firestore;
-  UserRepository(this._firestore);
+  final LoggerService _logger; // ✅ Internal logger reference
 
+  UserRepository(this._firestore, this._logger);
+
+  // --- SAVE USER PROFILE (INITIAL SETUP) ---
   Future<void> saveUserProfile({
     required User user,
     required String name,
@@ -24,6 +31,7 @@ class UserRepository {
     required String city,
     required String state,
   }) async {
+    // We use a Batch to ensure ALL documents are created, or NONE are.
     final batch = _firestore.batch();
     final timestamp = FieldValue.serverTimestamp();
 
@@ -37,24 +45,17 @@ class UserRepository {
       "role": role,
       "name": name,
       "phone": user.phoneNumber,
-      "email": null, // Captured later
+      "email": null,
       "profilePhotoUrl": null,
-
-      // FIRM OBJECT (As per Schema)
       "firm": {
         "name": firmName,
-        "isFirmAccount": false, // Default
-        "license": null // Captured in 'Complete Profile'
+        "isFirmAccount": false,
+        "license": null
       },
-
       "createdAt": timestamp,
       "updatedAt": timestamp,
       "status": "active",
-
-      // 🚩 THE FLAG
-      "isProfileComplete": false,
-
-      // METADATA (Location goes here for User)
+      "isProfileComplete": false, // 🚩 THE FLAG
       "metadata": {
         "city": city,
         "state": state,
@@ -62,7 +63,6 @@ class UserRepository {
         "lastLoginAt": timestamp,
         "appVersion": "1.0.0",
       },
-
       "trustScore": 100,
       "kycStatus": "pending",
       "kycDocuments": {},
@@ -73,9 +73,8 @@ class UserRepository {
     // ====================================================
     // 2. ROLE SPECIFIC COLLECTIONS
     // ====================================================
-
     if (role == 'architect') {
-      // ---> WALLETS COLLECTION
+      // ---> WALLETS COLLECTION (Architects)
       final walletRef = _firestore.collection('wallets').doc(user.uid);
       batch.set(walletRef, {
         "uid": user.uid,
@@ -84,17 +83,11 @@ class UserRepository {
         "frozenBalance": 0.00,
         "currency": "INR",
         "lastUpdatedAt": timestamp,
-
-        // Counters
         "totalEarned": 0.00,
         "totalWithdrawn": 0.00,
         "transactionCount": 0,
-
-        // Settings
         "autoPayoutThreshold": 10000.00,
         "minimumBalance": 0.00,
-
-        // Bank Details (Placeholder structure)
         "bankDetails": {
           "upi": null,
           "accountNumber": null,
@@ -104,67 +97,48 @@ class UserRepository {
       });
 
     } else if (role == 'shop') {
-      // ---> SHOPS COLLECTION
+      // ---> SHOPS COLLECTION (Shops)
       final shopRef = _firestore.collection('shops').doc(user.uid);
-
       batch.set(shopRef, {
         "shopId": user.uid,
         "ownerUid": user.uid,
-        "name": firmName, // Shop Name
+        "name": firmName,
         "description": "New Shop",
-
-        // ADDRESS OBJECT (Location goes here for Shop)
         "address": {
-          "street": "", // Captured later
+          "street": "",
           "city": city,
           "state": state,
-          "pincode": "" // Captured later
+          "pincode": ""
         },
-
         "phone": user.phoneNumber,
         "whatsapp": user.phoneNumber,
-
         "categories": ["general"],
         "brands": [],
-
-        // Commission
         "commissionDefaultPercent": 5.0,
         "commissionTiers": {
           "hardware": 3.0,
           "tiles": 5.0,
           "paint": 4.0
         },
-
         "status": "active",
         "createdAt": timestamp,
         "updatedAt": timestamp,
         "profilePhotoUrl": null,
         "galleryImages": [],
-
-        "location": {
-          "lat": 0.0,
-          "lng": 0.0,
-          "geohash": ""
-        },
-
-        // Business Hours (Default Structure)
+        "location": {"lat": 0.0, "lng": 0.0, "geohash": ""},
         "businessHours": {
           "monday": {"open": "09:00", "close": "20:00"},
           "sunday": {"open": "10:00", "close": "18:00"}
         },
-
-        "ratings": {
-          "average": 0.0,
-          "count": 0
-        }
+        "ratings": {"average": 0.0, "count": 0}
       });
 
-      // ---> B. SHOP STATS COLLECTION (Dashboard Numbers) <--- NEW ADDITION
+      // ---> SHOP STATS COLLECTION
       final statsRef = _firestore.collection('shop_stats').doc(user.uid);
       batch.set(statsRef, {
         "totalRevenue": 0.0,
         "totalCommission": 0.0,
-        "totalPaid": 0.0, // Explicitly initialized to avoid null errors
+        "totalPaid": 0.0,
         "totalDue": 0.0,
         "activeReferrals": 0,
         "updatedAt": timestamp,
@@ -172,23 +146,32 @@ class UserRepository {
     }
 
     // ====================================================
-    // 3. COMMIT
+    // 3. COMMIT BATCH
     // ====================================================
     await batch.commit();
+    _logger.logDebug("Batch commit successful for new user: ${user.uid} ($role)");
   }
 
   // --- UPDATE KYC DOCUMENTS ---
   Future<void> uploadKycDocument({
     required String uid,
-    required String docType, // 'aadhar' or 'pan'
+    required String docType,
     required String url,
   }) async {
     await _firestore.collection('users').doc(uid).update({
       "kycDocuments.$docType": url,
+      "kycStatus": "verification_pending",
       "updatedAt": FieldValue.serverTimestamp(),
-      // Note: We DO NOT change kycStatus here.
-      // Manual verification is required by Admin.
     });
+
+    // ✅ LOG IT: High value security action
+    _logger.logAudit(
+        entityType: 'user_kyc',
+        entityId: uid,
+        action: 'upload_document',
+        description: 'User uploaded KYC document: $docType',
+        severity: 'info'
+    );
   }
 
   // --- UPDATE PROFILE PHOTO ---
@@ -207,10 +190,8 @@ class UserRepository {
     required String bankName,
     required String upiId,
   }) async {
-    // 1. Reference the Wallet Document
     final walletRef = _firestore.collection('wallets').doc(uid);
 
-    // 2. Update the specific map field
     await walletRef.update({
       "bankDetails": {
         "accountNumber": accountNumber,
@@ -221,15 +202,23 @@ class UserRepository {
       "lastUpdatedAt": FieldValue.serverTimestamp(),
     });
 
-    // 3. OPTIONAL: Check if Profile is now "Complete"
-    // For now, we just save the bank data.
+    // ✅ LOG IT: High value financial security action
+    _logger.logAudit(
+        entityType: 'wallet',
+        entityId: uid,
+        action: 'update_bank_details',
+        description: 'User updated their payout bank details',
+        severity: 'warning', // Warning severity because bank details changed
+        category: 'security'
+    );
   }
 
-  // --- FETCH WALLET DATA (To display it) ---
+  // --- FETCH WALLET DATA ---
   Stream<DocumentSnapshot> getWalletStream(String uid) {
     return _firestore.collection('wallets').doc(uid).snapshots();
   }
 
+  // --- UPDATE PERSONAL DETAILS ---
   Future<void> updatePersonalDetails({
     required String uid,
     required String name,
@@ -241,10 +230,18 @@ class UserRepository {
     await _firestore.collection('users').doc(uid).update({
       "name": name,
       "email": email,
-      "firm.name": firmName,       // Dot notation updates ONLY the name inside firm
-      "metadata.city": city,       // Dot notation updates ONLY the city
-      "metadata.state": state,     // Dot notation updates ONLY the state
+      "firm.name": firmName,
+      "metadata.city": city,
+      "metadata.state": state,
       "updatedAt": FieldValue.serverTimestamp(),
     });
+
+    _logger.logAudit(
+        entityType: 'user_profile',
+        entityId: uid,
+        action: 'update_personal_details',
+        description: 'User updated core personal info',
+        severity: 'info'
+    );
   }
 }

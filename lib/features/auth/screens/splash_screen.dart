@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-import 'login_screen.dart'; // We'll create this "stub" file next
-import '../../../core/theme/app_theme.dart'; // Import our theme colors
 import 'dart:async';
+import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/authentication/auth_wrapper.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -15,13 +14,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToLogin();
+    _navigateToNext();
   }
 
-  void _navigateToLogin() {
-    Timer(const Duration(seconds: 3), () { // Use Timer for explicit scheduling
+  void _navigateToNext() {
+    // 3-second delay to show the brand
+    Timer(const Duration(seconds: 3), () {
       if (mounted) {
-        // Replace with a clean named route if possible, but MaterialPageRoute is fine for MVP:
+        // Pushes to AuthWrapper, which automatically decides Login vs Home
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const AuthWrapper()),
         );
@@ -31,40 +31,44 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Using theme colors directly
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      // We don't need an AppBar for a splash screen
+      backgroundColor: Colors.white, // Ensure a clean background
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 1. Our Placeholder Icon
+            // 1. Logo
             Image.asset(
-              'assets/images/logo/logo_without_name.png', // The path to your file
-              height: 80, // Keep the same height for consistent look
-              // If your logo is monochrome and needs tinting, use a ColorFilter here.
-              // If it's a full-color logo, just leave it as is.
+              'assets/images/logo/logo_without_name.png',
+              height: 80,
             ),
             const SizedBox(height: 24),
-            // 2. The App Name
+
+            // 2. App Name
             Text(
               "ArchConnect",
-              style: textTheme.headlineSmall?.copyWith(color: kPrimaryColor),
+              style: textTheme.headlineSmall?.copyWith(
+                  color: kPrimaryColor,
+                  fontWeight: FontWeight.bold
+              ),
             ),
             const SizedBox(height: 40),
 
-            // 3. The Loading Spinner
+            // 3. Loading Spinner
             const CircularProgressIndicator(
-              color: kPrimaryVariant, // Use our theme color
+              color: kPrimaryVariant,
             ),
             const SizedBox(height: 40),
 
-            // 4. The Tagline
+            // 4. Tagline
             Text(
               "Building trust, one brick at a time.",
-              style: textTheme.bodyMedium?.copyWith(fontSize: 14),
+              style: textTheme.bodyMedium?.copyWith(
+                  fontSize: 14,
+                  color: Colors.grey.shade600
+              ),
             ),
           ],
         ),

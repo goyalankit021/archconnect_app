@@ -2,34 +2,44 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart'; // ✅ Added for Firebase.app()
+import 'package:firebase_core/firebase_core.dart';
+
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/home/screens/architect_home.dart';
 import '../../features/home/screens/shop_home.dart';
 
-// ⚡️ 1. THE LOGIC PROVIDER (The Brain)
-final authStateProvider = StreamProvider.autoDispose<User?>((ref) {
+// ⚡️ 1. THE AUTH PROVIDER
+// Removed 'autoDispose' so it stays alive as long as the app is open
+final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
 });
 
-final userRoleProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, uid) async {
-  // ✅ FIX: Connect to the NAMED database, not the default one
+// ⚡️ 2. THE ROLE PROVIDER
+final userRoleProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, uid) async {
+
+  // Connect to the specific named database
   final db = FirebaseFirestore.instanceFor(
       app: Firebase.app(),
       databaseId: 'arch-connect-database'
   );
 
-  // Force a fetch from the SERVER, ignoring local cache (prevents zombie data)
+  // Force a fetch from the server to prevent stale cache data
   final doc = await db
       .collection('users')
       .doc(uid)
       .get(const GetOptions(source: Source.serverAndCache));
 
-  if (!doc.exists) throw Exception("User document not found");
+  if (!doc.exists) {
+    // 🚨 ANTI-LOOP FIX: If they are Authed but have no DB profile, sign them out.
+    // This happens if profile creation failed during initial signup.
+    await FirebaseAuth.instance.signOut();
+    throw Exception("Profile incomplete. Signed out for safety.");
+  }
+
   return doc.data()!;
 });
 
-// 🚦 2. THE WIDGET (The Traffic Cop)
+// 🚦 3. THE WIDGET (The Traffic Cop)
 class AuthWrapper extends ConsumerWidget {
   const AuthWrapper({super.key});
 
@@ -40,33 +50,56 @@ class AuthWrapper extends ConsumerWidget {
 
     return authState.when(
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, stack) => Center(child: Text("Auth Error: $e")),
-      data: (user) {
 
+      // If Auth itself fails (e.g., bad tokens)
+      error: (e, stack) => Scaffold(
+        body: Center(child: Text("Auth Error: $e", textAlign: TextAlign.center)),
+      ),
+
+      data: (user) {
         // CASE A: No User Logged In -> Go to Login
         if (user == null) {
           return const LoginScreen();
         }
 
-        // CASE B: User Logged In -> Fetch Role
+        // CASE B: User Logged In -> Fetch Role from DB
         final userDataAsync = ref.watch(userRoleProvider(user.uid));
 
         return userDataAsync.when(
           loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+
           error: (e, stack) {
-            // If error (e.g., user deleted or network fail), go back to login for safety
+            // CASE C: Error fetching DB profile (or missing doc caught by our fix)
+            // They are already signed out by the provider, so LoginScreen is safe.
             return const LoginScreen();
           },
+
           data: (userData) {
             final role = userData['role'];
 
-            // CASE C: Route based on Role
+            // CASE D: Route based on exact Role
             if (role == 'architect') {
               return ArchitectHome(userData: userData);
             } else if (role == 'shop') {
               return ShopHome(userData: userData);
             } else {
-              return const Scaffold(body: Center(child: Text("Error: Unknown Role")));
+              // Failsafe for corrupted data
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 50),
+                      const SizedBox(height: 16),
+                      Text("Invalid Role: $role"),
+                      TextButton(
+                        onPressed: () => FirebaseAuth.instance.signOut(),
+                        child: const Text("Log Out"),
+                      )
+                    ],
+                  ),
+                ),
+              );
             }
           },
         );

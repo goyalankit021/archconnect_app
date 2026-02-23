@@ -9,9 +9,9 @@ class ArchConnectApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'ArchConnect',
-      theme: AppTheme.lightTheme, // This applies our theme to the whole app
-      debugShowCheckedModeBanner: false, // Hides the "debug" banner
-      home: const SplashScreen(), // This is our entry screen
+      theme: AppTheme.lightTheme,
+      debugShowCheckedModeBanner: false,
+      home: const SplashScreen(),
     );
   }
 }
