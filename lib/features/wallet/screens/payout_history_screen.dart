@@ -31,16 +31,11 @@ class PayoutHistoryScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final data = payouts[index];
 
-              // --- MAPPING DATA TO SHARED CARD ---
               return TransactionCard(
-                title: "Withdrawal Request", // Static title for this screen
-
-                // Map the fields
+                title: "Withdrawal Request",
                 amount: (data['amount'] ?? 0).toDouble(),
                 status: data['status'] ?? 'requested',
-                date: data['requestedAt'], // Using 'requestedAt' for architect history
-
-                // Optional: Show notes if rejected
+                date: data['requestedAt'],
                 subtitle: data['notes'] != null && data['notes'].toString().isNotEmpty
                     ? data['notes']
                     : null,

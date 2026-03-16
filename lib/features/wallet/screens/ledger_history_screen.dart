@@ -3,15 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-// --- IMPORT THE SHEET ---
 import '../widgets/transaction_detail_sheet.dart';
 
-// --- THEME (From your snippet) ---
 const Color ktBackgroundColor = Color(0xFFF9FAFB);
 const Color ktTextSecondary = Colors.grey;
 
-// --- 1. SMART PARAMS & PROVIDER (Unchanged) ---
 class LedgerParams {
   final String partnerId;
   final bool isArchitectView;
@@ -48,7 +44,6 @@ final ledgerHistoryProvider = StreamProvider.autoDispose.family<List<Map<String,
       .map((snapshot) => snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList());
 });
 
-// --- 2. SCREEN ---
 class LedgerHistoryScreen extends ConsumerWidget {
   final String partnerId;
   final String partnerName;
@@ -95,13 +90,11 @@ class LedgerHistoryScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final txn = transactions[index];
 
-              // ONLY CHANGE: Added click logic to your design
               return GestureDetector(
                 onTap: () {
                   final isCredit = txn['type'] == 'commission_credit';
                   final status = txn['status'];
 
-                  // Allow upload if I am Shop AND status is Due/Verifying
                   if (isCredit && !isArchitectView && (status == 'due' || status == 'verification_pending')) {
                     showModalBottomSheet(
                       context: context,
@@ -122,7 +115,6 @@ class LedgerHistoryScreen extends ConsumerWidget {
     );
   }
 
-  // --- 3. YOUR ORIGINAL DESIGN (Restored Exactly) ---
   Widget _buildTransactionCard(Map<String, dynamic> data) {
     final type = data['type'] ?? 'unknown';
     final amount = (data['amount'] ?? 0).toDouble();
@@ -133,13 +125,11 @@ class LedgerHistoryScreen extends ConsumerWidget {
     final meta = data['meta'] as Map<String, dynamic>? ?? {};
     final projectName = meta['projectName'] ?? meta['description'] ?? 'Unknown Project';
 
-    // Visual Logic
     final isCredit = type == 'commission_credit';
     final color = isCredit ? Colors.blue : Colors.green;
     final icon = isCredit ? Icons.add_circle_outline : Icons.check_circle_outline;
 
-    // Title Logic
-    String title = "Commission Earned"; // Default
+    String title = "Commission Earned";
     if (isCredit) {
       title = isArchitectView ? "Commission Earned" : "Commission Payable";
     } else {
@@ -156,15 +146,12 @@ class LedgerHistoryScreen extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 16),
-
-          // Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +161,6 @@ class LedgerHistoryScreen extends ConsumerWidget {
                 Text(projectName, style: const TextStyle(color: ktTextSecondary, fontSize: 12)),
                 const SizedBox(height: 8),
 
-                // ✅ Your Original Logic: Show Bill Amount only for Commissions
                 if (isCredit && billAmount > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0),
@@ -186,7 +172,6 @@ class LedgerHistoryScreen extends ConsumerWidget {
 
                 const SizedBox(height: 10),
 
-                // Date & Status Row
                 Row(
                   children: [
                     Text(_formatDate(timestamp), style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
@@ -197,8 +182,6 @@ class LedgerHistoryScreen extends ConsumerWidget {
               ],
             ),
           ),
-
-          // Amount
           Column(
             children: [
               Text(
@@ -216,12 +199,10 @@ class LedgerHistoryScreen extends ConsumerWidget {
     );
   }
 
-  // --- 4. YOUR ORIGINAL BADGE (Restored) ---
   Widget _buildStatusBadge(String status) {
     Color color;
     String text = status.toUpperCase();
 
-    // Logic: Added 'verification_pending' to your existing color scheme
     if (status == 'due' || status == 'pending') {
       color = Colors.orange;
     } else if (status == 'verification_pending') {

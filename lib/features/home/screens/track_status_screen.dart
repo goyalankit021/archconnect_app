@@ -43,10 +43,10 @@ class TrackStatusScreen extends ConsumerWidget {
   }
 
   Widget _buildReferralCard(BuildContext context, Map<String, dynamic> data) {
-    final clientName = data['clientInfo']?['name'] ?? 'Unknown Client';
-    final projectName = data['projectName'] ?? 'Project';
-    final shopName = data['shopName'] ?? 'Unknown Shop';
-    final status = data['status'] ?? 'pending';
+    final clientName = data['clientInfo']?['name']?.toString() ?? 'Unknown Client';
+    final projectName = data['projectName']?.toString() ?? 'Project';
+    final shopName = data['shopName']?.toString() ?? 'Unknown Shop';
+    final status = data['status']?.toString() ?? 'pending';
     final Timestamp? createdAt = data['createdAt'];
 
     // Status Logic
@@ -78,8 +78,11 @@ class TrackStatusScreen extends ConsumerWidget {
       default:
         statusColor = Colors.grey;
         statusIcon = Icons.help_outline;
-        statusText = status.toString().toUpperCase();
+        statusText = status.toUpperCase();
     }
+
+    // ✅ FIX: Safe Avatar Initial generation to prevent crash on empty strings
+    final String avatarInitial = clientName.isNotEmpty ? clientName[0].toUpperCase() : "?";
 
     return GestureDetector(
       onTap: () {
@@ -142,12 +145,12 @@ class TrackStatusScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Avatar / Initials
+                  // Avatar
                   CircleAvatar(
                     backgroundColor: kSurfaceColor,
                     radius: 24,
                     child: Text(
-                      clientName[0],
+                      avatarInitial,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: kPrimaryColor,
@@ -156,7 +159,7 @@ class TrackStatusScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 16),
 
-                  // Info
+                  // Info (Properly Expanded to prevent overflow)
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,6 +170,8 @@ class TrackStatusScreen extends ConsumerWidget {
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -175,12 +180,15 @@ class TrackStatusScreen extends ConsumerWidget {
                             color: kTextSecondary,
                             fontSize: 13,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
 
                   // Arrow
+                  const SizedBox(width: 8),
                   const Icon(
                     Icons.arrow_forward_ios,
                     size: 16,

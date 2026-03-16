@@ -7,8 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-
-import '../screens/shop_wallet_screen.dart';
+import '../data/wallet_repository.dart';
 
 class TransactionDetailSheet extends ConsumerStatefulWidget {
   final Map<String, dynamic> transactionData;
@@ -24,8 +23,7 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
 
-  // New State for Payment Mode
-  String _selectedPaymentMode = "UPI"; // Default
+  String _selectedPaymentMode = "UPI";
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
@@ -40,6 +38,7 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
     if (_selectedImage == null) return;
 
     setState(() => _isUploading = true);
+    String? downloadUrl;
 
     try {
       final txnId = widget.transactionData['transactionId'];
@@ -51,7 +50,7 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
           .child('payment_proofs/$uid/$txnId.jpg');
 
       await storageRef.putFile(_selectedImage!);
-      final downloadUrl = await storageRef.getDownloadURL();
+      downloadUrl = await storageRef.getDownloadURL();
 
       // 2. Update Firestore
       await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database')
@@ -61,7 +60,6 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
         'status': 'verification_pending',
         'paymentProofUrl': downloadUrl,
         'paymentUploadedAt': FieldValue.serverTimestamp(),
-        // Save the selected mode in notes
         'paymentNote': "Paid via $_selectedPaymentMode",
       });
 
@@ -73,6 +71,14 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
       }
     } catch (e) {
       debugPrint("Upload Error: $e");
+
+      // ✅ SAFETY FIX: Delete orphaned image if DB update fails
+      if (downloadUrl != null) {
+        try {
+          await FirebaseStorage.instance.refFromURL(downloadUrl).delete();
+        } catch (_) {}
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
       }
@@ -123,7 +129,6 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
 
           // --- CONDITIONAL UI ---
           if (status == 'due') ...[
-
             // 1. Bank Details Section
             Container(
               padding: const EdgeInsets.all(16),
@@ -144,7 +149,6 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
                     const SizedBox(height: 12),
                     _buildCopyRow("Account", bankData['accountNumber'] ?? "N/A"),
                     const SizedBox(height: 12),
-                    // ✅ NEW: IFSC Code Added
                     _buildCopyRow("IFSC", bankData['ifscCode'] ?? "N/A"),
                   ],
                 ),
@@ -173,7 +177,6 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ✅ NEW: Payment Mode Selector
                   const Text("Payment Method Used:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 8),
                   Row(
@@ -208,7 +211,6 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
                   ),
                   const SizedBox(height: 16),
 
-                  // Submit Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -264,7 +266,6 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
     );
   }
 
-  // ✅ NEW: Widget for Payment Mode Selection
   Widget _buildChoiceChip(String label) {
     final bool isSelected = _selectedPaymentMode == label;
     return ChoiceChip(
@@ -296,13 +297,15 @@ class _TransactionDetailSheetState extends ConsumerState<TransactionDetailSheet>
       children: [
         Expanded(
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start, // Align to top for multi-line
             children: [
               SizedBox(
-                width: 70, // Fixed width for alignment
+                width: 70,
                 child: Text("$label:", style: const TextStyle(fontSize: 13, color: Colors.black54)),
               ),
               Expanded(
-                child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis),
+                // ✅ FIX: Allow text to wrap to 2 lines so full UPI/Account is readable
+                child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2),
               ),
             ],
           ),

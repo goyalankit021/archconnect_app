@@ -4,19 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/logger_service.dart'; // ✅ Added Logger
 import '../../leads/screens/view_leads_screen.dart';
+// import '../home/screens/track_status_screen.dart'; // Add this for Architect routing later
 
-// --- PROVIDER TO FETCH NOTIFICATIONS ---
 final userNotificationsProvider = StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
   final uid = FirebaseAuth.instance.currentUser?.uid;
 
   if (uid == null) return const Stream.empty();
 
-  // Listen to 'notifications' collection where toUid == Me
   return FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database')
       .collection('notifications')
       .where('toUid', isEqualTo: uid)
-      .orderBy('createdAt', descending: true) // Newest first
+      .orderBy('createdAt', descending: true)
       .snapshots()
       .map((snapshot) {
     return snapshot.docs.map((doc) => doc.data()).toList();
@@ -40,9 +40,7 @@ class NotificationScreen extends ConsumerWidget {
       ),
       body: notifAsync.when(
         data: (notifications) {
-          if (notifications.isEmpty) {
-            return _buildEmptyState();
-          }
+          if (notifications.isEmpty) return _buildEmptyState();
 
           return ListView.separated(
             padding: const EdgeInsets.all(16),
@@ -50,7 +48,7 @@ class NotificationScreen extends ConsumerWidget {
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final data = notifications[index];
-              return _buildNotificationCard(context, data);
+              return _buildNotificationCard(context, ref, data);
             },
           );
         },
@@ -60,21 +58,16 @@ class NotificationScreen extends ConsumerWidget {
     );
   }
 
-  // --- WIDGET: NOTIFICATION CARD ---
-  Widget _buildNotificationCard(BuildContext context, Map<String, dynamic> data) {
+  Widget _buildNotificationCard(BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
     final bool isRead = data['read'] ?? false;
     final String type = data['type'] ?? 'general';
 
     return Container(
       decoration: BoxDecoration(
-        color: isRead ? Colors.white : Colors.blue.shade50, // Highlight unread
+        color: isRead ? Colors.white : Colors.blue.shade50,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
+          BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
         ],
         border: isRead ? null : Border.all(color: Colors.blue.shade100),
       ),
@@ -82,63 +75,60 @@ class NotificationScreen extends ConsumerWidget {
         contentPadding: const EdgeInsets.all(16),
         leading: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: _getIconColor(type).withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: _getIconColor(type).withOpacity(0.1), shape: BoxShape.circle),
           child: Icon(_getIcon(type), color: _getIconColor(type), size: 24),
         ),
         title: Text(
           data['title'] ?? "Notification",
-          style: TextStyle(
-            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-            fontSize: 14,
-          ),
+          style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold, fontSize: 14),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4.0),
-          child: Text(
-            data['body'] ?? "",
-            style: TextStyle(color: kTextSecondary, fontSize: 12),
-          ),
+          child: Text(data['body'] ?? "", style: const TextStyle(color: kTextSecondary, fontSize: 12)),
         ),
-        trailing: Text(
-          _formatTime(data['createdAt']),
-          style: const TextStyle(fontSize: 10, color: Colors.grey),
-        ),
+        trailing: Text(_formatTime(data['createdAt']), style: const TextStyle(fontSize: 10, color: Colors.grey)),
         onTap: () async {
           final String notifId = data['notificationId'];
 
-          // Prepare the updates
+          // ✅ LOG IT: Debugging notification clicks
+          ref.read(loggerServiceProvider).logDebug("User tapped notification: $notifId (Type: $type)");
+
           final Map<String, dynamic> updates = {
             'clicked': true,
-            'clickedAt': FieldValue.serverTimestamp(), // Track EXACTLY when they tapped
+            'clickedAt': FieldValue.serverTimestamp(),
           };
 
-          // Only set 'read' metadata if it wasn't read before
           if (!isRead) {
             updates['read'] = true;
             updates['readAt'] = FieldValue.serverTimestamp();
           }
 
-          // Execute Update
-          await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database')
-              .collection('notifications')
-              .doc(notifId)
-              .update(updates);
+          try {
+            await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database')
+                .collection('notifications')
+                .doc(notifId)
+                .update(updates);
+          } catch (e) {
+            ref.read(loggerServiceProvider).logDebug("Error updating notification status: $e");
+          }
 
-          // --- NAVIGATION LOGIC ---
+          // --- FIXED NAVIGATION LOGIC ---
           if (context.mounted) {
+            // TODO (V2): Ensure role check before pushing to ViewLeadsScreen
+            // Since ViewLeadsScreen is meant for Shops, if an Architect clicks a referral update,
+            // they should go to TrackStatusScreen instead.
+
             if (type == 'referral_initiated') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ViewLeadsScreen(),
-                ),
-              );
+              try {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ViewLeadsScreen()),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Screen not found")));
+              }
             } else {
-              // Handle general clicks or other types (e.g., 'shop' related updates)
-              // You might want to navigate to a generic details screen or the shop home here
+              // General notifications (no hard routing yet)
             }
           }
         },
@@ -146,7 +136,6 @@ class NotificationScreen extends ConsumerWidget {
     );
   }
 
-  // --- WIDGET: EMPTY STATE ---
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -158,17 +147,15 @@ class NotificationScreen extends ConsumerWidget {
             child: Icon(Icons.notifications_off_outlined, size: 40, color: Colors.grey.shade400),
           ),
           const SizedBox(height: 16),
-          Text("No notifications yet", style: TextStyle(color: kTextSecondary, fontSize: 16)),
+          const Text("No notifications yet", style: TextStyle(color: kTextSecondary, fontSize: 16)),
         ],
       ),
     );
   }
 
-  // --- HELPERS ---
   IconData _getIcon(String type) {
     if (type.contains('referral')) return Icons.person_add_alt_1;
     if (type.contains('money') || type.contains('payout')) return Icons.account_balance_wallet;
-    // Assuming 'shop' or product notifications might have a different icon
     if (type.contains('shop') || type.contains('order')) return Icons.shopping_bag;
     return Icons.notifications;
   }

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../referral/data/referral_repository.dart';
+import '../../discovery/data/referral_repository.dart';
 
 class ShopDetailScreen extends ConsumerWidget {
   final Map<String, dynamic> shopData;
-  final String shopId; // We need this for the referral ID later
+  final String shopId;
 
   const ShopDetailScreen({
     super.key,
@@ -24,7 +24,6 @@ class ShopDetailScreen extends ConsumerWidget {
     final brands = List<String>.from(shopData['brands'] ?? []);
     final gallery = List<String>.from(shopData['galleryImages'] ?? []);
 
-    // Address Formatting
     final address = shopData['address'] ?? {};
     final fullAddress = "${address['street'] ?? ''}, ${address['city'] ?? ''}";
 
@@ -45,7 +44,6 @@ class ShopDetailScreen extends ConsumerWidget {
                   photoUrl != null
                       ? Image.network(photoUrl, fit: BoxFit.cover)
                       : Container(color: Colors.grey, child: const Icon(Icons.store, size: 50, color: Colors.white)),
-                  // Gradient for text readability
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -96,13 +94,11 @@ class ShopDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(description, style: TextStyle(color: kTextSecondary, height: 1.5)),
 
-                  // ... inside the Column, after "About the Shop" & Address Row ...
-
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
 
-                  // ✅ NEW: CONTACT INFO
+                  // CONTACT INFO
                   const Text("Contact Info", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   Row(
@@ -112,17 +108,15 @@ class ShopDetailScreen extends ConsumerWidget {
                           label: "Call Shop",
                           color: Colors.blue,
                           onTap: () {
-                            // In future: launchUrl("tel:${shopData['phone']}");
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Phone: ${shopData['phone']}")));
                           }
                       ),
                       const SizedBox(width: 12),
                       _buildContactButton(
-                          icon: Icons.message, // WhatsApp
+                          icon: Icons.message,
                           label: "WhatsApp",
                           color: Colors.green,
                           onTap: () {
-                            // In future: launchUrl("https://wa.me/...");
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("WhatsApp: ${shopData['whatsapp']}")));
                           }
                       ),
@@ -131,7 +125,7 @@ class ShopDetailScreen extends ConsumerWidget {
 
                   const SizedBox(height: 24),
 
-                  // ✅ NEW: BUSINESS HOURS
+                  // BUSINESS HOURS
                   const Text("Working Hours", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   _buildHoursList(shopData['businessHours']),
@@ -149,7 +143,7 @@ class ShopDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
 
-                  // WHAT WE SELL (Categories & Brands)
+                  // WHAT WE SELL
                   const Text("Products & Brands", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   Wrap(
@@ -180,7 +174,7 @@ class ShopDetailScreen extends ConsumerWidget {
                         },
                       ),
                     ),
-                    const SizedBox(height: 80), // Space for bottom button
+                    const SizedBox(height: 80),
                   ],
                 ],
               ),
@@ -189,26 +183,26 @@ class ShopDetailScreen extends ConsumerWidget {
         ],
       ),
 
-      // --- 3. BOTTOM ACTION BAR (FIXED) ---
+      // --- 3. BOTTOM ACTION BAR (FIXED FOR RESPONSIVENESS) ---
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, -5))]
+            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimaryColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 16), // Let padding define height
-                elevation: 0,
-              ),
-              onPressed: () => _showReferralForm(context, ref),
-              child: const Text(
-                  "REFER A CLIENT",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 56, // Enforce consistent height
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimaryColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: () => _showReferralForm(context, ref),
+                child: const Text("REFER A CLIENT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ),
           ),
@@ -250,11 +244,9 @@ class ShopDetailScreen extends ConsumerWidget {
   }
 
   Widget _buildHoursList(dynamic businessHours) {
-    // Handle case where data is missing
     final hours = businessHours as Map<String, dynamic>? ?? {};
     if (hours.isEmpty) return const Text("Hours not updated", style: TextStyle(color: Colors.grey));
 
-    // Helper to extract string
     String getRange(String day) {
       final d = hours[day];
       if (d == null) return "Closed";
@@ -275,44 +267,36 @@ class ShopDetailScreen extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(day, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
-        Text(
-            time,
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: time == "Closed" ? Colors.red : (isHighlight ? Colors.black : Colors.black87)
-            )
-        ),
+        Text(time, style: TextStyle(fontWeight: FontWeight.bold, color: time == "Closed" ? Colors.red : (isHighlight ? Colors.black : Colors.black87))),
       ],
     );
   }
 
   void _showReferralForm(BuildContext context, WidgetRef ref) {
-    // Controllers
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final addressCtrl = TextEditingController();
     final projectCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
 
-    // State Variables (We use StatefulBuilder inside sheet to handle these)
-    String selectedType = "residential"; // Default
+    String selectedType = "residential";
     bool isLoading = false;
     final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Full height
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
           builder: (ctx, setSheetState) {
             return Container(
-              height: MediaQuery.of(context).size.height * 0.85, // 85% Height
+              height: MediaQuery.of(context).size.height * 0.85,
               decoration: const BoxDecoration(
                 color: kBackgroundColor,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom, // Keyboard awareness
+                bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
               child: Column(
                 children: [
@@ -342,7 +326,7 @@ class ShopDetailScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // 1. TRUST ANCHOR (Shop & Commission)
+                            // 1. TRUST ANCHOR
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
@@ -402,13 +386,11 @@ class ShopDetailScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 16),
 
-                            // Find the "Project Type" section and replace the Row with this Wrap:
                             const Text("Project Type", style: TextStyle(fontSize: 12, color: Colors.grey)),
                             const SizedBox(height: 8),
-
-                            Wrap( // <--- CHANGED FROM ROW TO WRAP
-                              spacing: 8.0, // Gap between chips horizontally
-                              runSpacing: 8.0, // Gap between lines vertically
+                            Wrap(
+                              spacing: 8.0,
+                              runSpacing: 8.0,
                               children: ["residential", "commercial", "renovation"].map((type) {
                                 final isSelected = selectedType == type;
                                 return ChoiceChip(
@@ -417,7 +399,7 @@ class ShopDetailScreen extends ConsumerWidget {
                                   onSelected: (val) => setSheetState(() => selectedType = type),
                                   selectedColor: kPrimaryColor,
                                   labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
-                                  checkmarkColor: Colors.white, // Make checkmark visible
+                                  checkmarkColor: Colors.white,
                                 );
                               }).toList(),
                             ),
@@ -451,24 +433,23 @@ class ShopDetailScreen extends ConsumerWidget {
                     ),
                     child: SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 56, // Consistent height
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 16),),
+                        style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor, elevation: 0),
                         onPressed: isLoading ? null : () async {
                           if (formKey.currentState!.validate()) {
                             setSheetState(() => isLoading = true);
+                            FocusScope.of(context).unfocus(); // ✅ FIX: Drop keyboard on submit
 
                             try {
-                              final uid = FirebaseAuth.instance.currentUser!.uid;
                               final user = FirebaseAuth.instance.currentUser;
-                              final name = user?.displayName ?? "Architect";
+                              if (user == null) throw Exception("User not found");
 
-                              // CALL REPOSITORY
                               await ref.read(referralRepositoryProvider).createReferral(
-                                architectUid: uid,
-                                architectName: name,
-                                shopId: shopId, // Passed from widget
+                                architectUid: user.uid,
+                                architectName: user.displayName ?? "Architect", // ✅ Added
+                                shopId: shopId,
+                                shopName: shopData['name'] ?? "Unknown Shop",   // ✅ Added
                                 commissionPercent: (shopData['commissionDefaultPercent'] ?? 0.0).toDouble(),
                                 clientInfo: {
                                   "name": nameCtrl.text.trim(),
@@ -480,19 +461,13 @@ class ShopDetailScreen extends ConsumerWidget {
                                 notes: notesCtrl.text.trim(),
                               );
 
-                              if (!context.mounted) return;
-                              Navigator.pop(context); // Close Form
-                              Navigator.pop(context); // Close Shop Detail Page (Back to Discovery)
+                              if (!ctx.mounted) return; // ✅ Use 'ctx' (the sheet's context), not 'context' (the screen's context)
+                              Navigator.of(ctx).pop(); // ✅ Closes the bottom sheet safely
 
-                              // Success Message
+                              // Show the success message using the main screen's context
                               ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Referral Sent Successfully! 🚀"),
-                                    backgroundColor: Colors.green,
-                                  )
+                                  const SnackBar(content: Text("Referral Sent Successfully! 🚀"), backgroundColor: Colors.green)
                               );
-
-                              // TODO: Trigger Notification Here
 
                             } catch (e) {
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
@@ -502,8 +477,8 @@ class ShopDetailScreen extends ConsumerWidget {
                           }
                         },
                         child: isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text("CONFIRM & SEND REFERRAL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text("CONFIRM & SEND", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   )

@@ -10,8 +10,8 @@ class ReferralDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Extract Data Helpers
     final client = data['clientInfo'] as Map<String, dynamic>? ?? {};
-    final status = data['status'] ?? 'pending';
-    final notes = data['notes'] ?? 'No notes provided.';
+    final status = data['status']?.toString() ?? 'pending';
+    final notes = data['notes']?.toString() ?? 'No notes provided.';
     final materials = List<String>.from(data['materialCategories'] ?? []);
 
     // Financials
@@ -64,7 +64,7 @@ class ReferralDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // ✅ 2. FINANCIAL CARD (New Addition)
+            // 2. FINANCIAL CARD
             if (showFinancials) ...[
               Container(
                 width: double.infinity,
@@ -106,17 +106,17 @@ class ReferralDetailScreen extends StatelessWidget {
 
             // 3. PROJECT INFO
             _buildSectionHeader("Project Details"),
-            _buildInfoRow(Icons.work_outline, "Project Name", data['projectName'] ?? 'N/A'),
-            _buildInfoRow(Icons.category_outlined, "Type", (data['projectType'] ?? 'N/A').toString().toUpperCase()),
-            _buildInfoRow(Icons.storefront, "Sent To", data['shopName'] ?? 'Unknown Shop'),
+            _buildInfoRow(Icons.work_outline, "Project Name", data['projectName']?.toString() ?? 'N/A'),
+            _buildInfoRow(Icons.category_outlined, "Type", (data['projectType']?.toString() ?? 'N/A').toUpperCase()),
+            _buildInfoRow(Icons.storefront, "Sent To", data['shopName']?.toString() ?? 'Unknown Shop'),
 
             const Divider(height: 32),
 
             // 4. CLIENT INFO
             _buildSectionHeader("Client Information"),
-            _buildInfoRow(Icons.person_outline, "Name", client['name'] ?? 'N/A'),
-            _buildInfoRow(Icons.phone_outlined, "Phone", client['phone'] ?? 'N/A'),
-            _buildInfoRow(Icons.location_on_outlined, "Site Address", client['address'] ?? 'N/A'),
+            _buildInfoRow(Icons.person_outline, "Name", client['name']?.toString() ?? 'N/A'),
+            _buildInfoRow(Icons.phone_outlined, "Phone", client['phone']?.toString() ?? 'N/A'),
+            _buildInfoRow(Icons.location_on_outlined, "Site Address", client['address']?.toString() ?? 'N/A'),
 
             const Divider(height: 32),
 
@@ -184,8 +184,12 @@ class ReferralDetailScreen extends StatelessWidget {
             width: 100,
             child: Text(label, style: const TextStyle(color: kTextSecondary, fontSize: 13)),
           ),
+          // ✅ FIX: Expanded the value to prevent long addresses/names from overflowing
           Expanded(
-            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            ),
           ),
         ],
       ),

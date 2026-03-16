@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class PayoutBottomSheet extends ConsumerStatefulWidget {
   final double currentBalance;
-  final Map<String, dynamic> bankDetails; // Passed from the wallet screen
+  final Map<String, dynamic> bankDetails;
 
   const PayoutBottomSheet({
     super.key,
@@ -27,17 +27,18 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // ✅ FIX: Drop keyboard to prevent UI jump during loading
+    FocusScope.of(context).unfocus();
+
     final amount = double.parse(_amountController.text);
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    // Formatting Bank Info for the record
     final bankInfo = "${widget.bankDetails['bankName']} (${widget.bankDetails['accountNumber']})";
 
     setState(() => _isLoading = true);
 
     try {
-      // Call the Repo
       await ref.read(walletRepositoryProvider).requestPayout(
         uid: uid,
         amount: amount,
@@ -45,9 +46,8 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
       );
 
       if (!mounted) return;
-      Navigator.pop(context); // Close sheet
+      Navigator.pop(context);
 
-      // Success Message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Success! ₹${amount.toInt()} withdrawal requested."),
@@ -67,12 +67,10 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // Safety: If no bank details exist
     final bankName = widget.bankDetails['bankName'] ?? 'No Bank Linked';
     final accNum = widget.bankDetails['accountNumber'] ?? '----';
 
     return Padding(
-      // Handles keyboard covering input
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
         left: 24,
@@ -85,7 +83,6 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -96,7 +93,6 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
             const Divider(),
             const SizedBox(height: 16),
 
-            // Bank Info Card
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -120,7 +116,6 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
             ),
             const SizedBox(height: 24),
 
-            // Amount Input
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
@@ -142,7 +137,6 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
               },
             ),
 
-            // Available Balance Hint
             Padding(
               padding: const EdgeInsets.only(top: 8.0, bottom: 24),
               child: Text(
@@ -151,7 +145,6 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
               ),
             ),
 
-            // Action Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -162,7 +155,8 @@ class _PayoutBottomSheetState extends ConsumerState<PayoutBottomSheet> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
+                // ✅ FIX: Constrain spinner size so button doesn't jump
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                     : const Text("CONFIRM WITHDRAWAL"),
               ),
             ),

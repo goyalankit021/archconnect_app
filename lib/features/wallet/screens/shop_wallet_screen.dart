@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Clipboard
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-
+import '../data/wallet_repository.dart';
 import 'ledger_history_screen.dart';
 
 const Color tBackgroundColor = Color(0xFFF9FAFB);
@@ -28,15 +28,6 @@ final shopLedgersProvider = StreamProvider.autoDispose<List<Map<String, dynamic>
       .orderBy('lastTransactionAt', descending: true)
       .snapshots()
       .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
-});
-
-// --- 2. NEW PROVIDER: PLATFORM BANK DETAILS ---
-final platformBankDetailsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final doc = await FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'arch-connect-database')
-      .collection('platform_settings')
-      .doc('payment_config')
-      .get();
-  return doc.data() ?? {};
 });
 
 class ShopWalletScreen extends ConsumerWidget {

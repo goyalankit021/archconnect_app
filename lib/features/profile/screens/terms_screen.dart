@@ -20,32 +20,19 @@ class TermsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSectionTitle("1. Introduction"),
-            _buildParagraph(
-                "Welcome to ArchConnect. By using our application, you agree to facilitate transparent business connections between Architects and Material Suppliers (Shops)."
-            ),
+            _buildParagraph("Welcome to ArchConnect. By using our application, you agree to facilitate transparent business connections between Architects and Material Suppliers (Shops)."),
 
             _buildSectionTitle("2. How it Works"),
-            _buildParagraph(
-                "ArchConnect serves as a bridge. Architects refer clients to registered Shops. Once a purchase is confirmed by the Shop, the transaction is logged, and the agreed commission is tracked within the app."
-            ),
+            _buildParagraph("ArchConnect serves as a bridge. Architects refer clients to registered Shops. Once a purchase is confirmed by the Shop, the transaction is logged, and the agreed commission is tracked within the app."),
 
             _buildSectionTitle("3. Commissions & Payments"),
-            _buildParagraph(
-                "Commissions are calculated based on the successful conversion of referrals. ArchConnect tracks these amounts, but the actual fund transfer is subject to the agreement between the Architect and the Shop Owner."
-            ),
+            _buildParagraph("Commissions are calculated based on the successful conversion of referrals. ArchConnect tracks these amounts, but the actual fund transfer is subject to the agreement between the Architect and the Shop Owner."),
 
             _buildSectionTitle("4. User Responsibilities"),
-            _buildParagraph(
-                "• Architects must provide genuine client leads.\n"
-                    "• Shops must accurately log bill amounts and honor commission agreements.\n"
-                    "• Any disputes regarding amounts are to be resolved between parties.\n"
-                    "• Architects can withdraw the commission only when shop transfers commission."
-            ),
+            _buildParagraph("• Architects must provide genuine client leads.\n• Shops must accurately log bill amounts and honor commission agreements.\n• Any disputes regarding amounts are to be resolved between parties.\n• Architects can withdraw the commission only when shop transfers commission."),
 
             _buildSectionTitle("5. Data Privacy"),
-            _buildParagraph(
-                "We take your privacy seriously. Your KYC documents (Aadhar/PAN) are encrypted and used solely for identity verification purposes. We do not sell your data to third parties."
-            ),
+            _buildParagraph("We take your privacy seriously. Your KYC documents (Aadhar/PAN) are encrypted and used solely for identity verification purposes. We do not sell your data to third parties."),
 
             const SizedBox(height: 40),
             Center(

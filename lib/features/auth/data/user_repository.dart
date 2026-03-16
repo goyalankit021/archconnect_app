@@ -130,7 +130,8 @@ class UserRepository {
           "monday": {"open": "09:00", "close": "20:00"},
           "sunday": {"open": "10:00", "close": "18:00"}
         },
-        "ratings": {"average": 0.0, "count": 0}
+        "ratings": {"average": 0.0, "count": 0},
+        "isVerified": false,
       });
 
       // ---> SHOP STATS COLLECTION

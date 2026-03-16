@@ -23,33 +23,28 @@ class TransactionCard extends StatelessWidget {
     IconData icon = Icons.history;
     String statusText = status.toUpperCase();
 
-    // LOGIC: Based on your 'Invoice Model'
     switch (status.toLowerCase()) {
-    // --- PAID / HISTORICAL ---
       case 'settled':
       case 'completed':
       case 'paid':
         color = Colors.green;
         icon = Icons.check_circle_outline;
-        statusText = "Paid"; // User friendly text
+        statusText = "Paid";
         break;
 
-    // --- PAYABLE / ACTIVE DEBT ---
       case 'due':
-        color = Colors.red; // Red because it's money OUT
+        color = Colors.red;
         icon = Icons.pending_actions;
         statusText = "Due";
         break;
 
-    // --- PROCESSING ---
-      case 'requested': // For Architect withdrawals
+      case 'requested':
       case 'processing':
         color = Colors.orange;
         icon = Icons.hourglass_top;
         statusText = "Processing";
         break;
 
-    // --- FAILED ---
       case 'rejected':
       case 'cancelled':
         color = Colors.grey;
@@ -67,15 +62,12 @@ class TransactionCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Icon Box
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 16),
-
-          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,8 +86,6 @@ class TransactionCard extends StatelessWidget {
               ],
             ),
           ),
-
-          // Amount
           Text(
             "₹${amount.toStringAsFixed(0)}",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color),

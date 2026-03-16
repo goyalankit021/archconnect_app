@@ -2,31 +2,36 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/logger_service.dart'; // ✅ Added Logger
 
 final shopRepositoryProvider = Provider((ref) {
+  final logger = ref.read(loggerServiceProvider);
   return ShopRepository(
     FirebaseFirestore.instanceFor(
       app: Firebase.app(),
       databaseId: 'arch-connect-database',
     ),
+    logger,
   );
 });
 
 class ShopRepository {
   final FirebaseFirestore _firestore;
+  final LoggerService _logger;
 
-  ShopRepository(this._firestore);
+  ShopRepository(this._firestore, this._logger);
 
-  // Fetch ALL shops
+  // --- FETCH ALL SHOPS ---
   Future<List<Map<String, dynamic>>> getAllShops() async {
     try {
       final snapshot = await _firestore
           .collection('users')
-          .where('role', isEqualTo: 'shop') // <--- The Filter
+          .where('role', isEqualTo: 'shop')
           .get();
 
       return snapshot.docs.map((doc) => doc.data()).toList();
-    } catch (e) {
+    } catch (e, s) {
+      _logger.logError(e, s, reason: "Failed to fetch all shops");
       throw Exception("Failed to fetch shops: $e");
     }
   }
@@ -36,18 +41,17 @@ class ShopRepository {
     return _firestore.collection('shops').doc(uid).snapshots();
   }
 
-  // --- UPDATE SHOP OVERVIEW (SYNCED WITH USER EMAIL) ---
+  // --- UPDATE SHOP OVERVIEW ---
   Future<void> updateShopOverview({
     required String uid,
     required String description,
     required String whatsapp,
     required List<String> categories,
     required List<String> brands,
-    required String email, // <--- NEW PARAMETER
+    required String email,
   }) async {
     final batch = _firestore.batch();
 
-    // 1. Update Shop Details
     final shopRef = _firestore.collection('shops').doc(uid);
     batch.update(shopRef, {
       "description": description,
@@ -57,7 +61,6 @@ class ShopRepository {
       "updatedAt": FieldValue.serverTimestamp(),
     });
 
-    // 2. Update Email in Users Collection
     final userRef = _firestore.collection('users').doc(uid);
     batch.update(userRef, {
       "email": email,
@@ -65,25 +68,24 @@ class ShopRepository {
     });
 
     await batch.commit();
+
+    _logger.logAudit(
+      entityType: 'shop_profile',
+      entityId: uid,
+      action: 'update_overview',
+      description: 'Shop owner updated their business overview and categories',
+    );
   }
 
-  // --- UPDATE SHOP PHOTO (SYNCED) ---
+  // --- UPDATE SHOP PHOTO ---
   Future<void> updateShopPhoto(String uid, String url) async {
     final batch = _firestore.batch();
 
-    // 1. Update Shop Document
     final shopRef = _firestore.collection('shops').doc(uid);
-    batch.update(shopRef, {
-      "profilePhotoUrl": url,
-      "updatedAt": FieldValue.serverTimestamp(),
-    });
+    batch.update(shopRef, {"profilePhotoUrl": url, "updatedAt": FieldValue.serverTimestamp()});
 
-    // 2. Update User Document (For App Drawer/Common UI)
     final userRef = _firestore.collection('users').doc(uid);
-    batch.update(userRef, {
-      "profilePhotoUrl": url,
-      "updatedAt": FieldValue.serverTimestamp(),
-    });
+    batch.update(userRef, {"profilePhotoUrl": url, "updatedAt": FieldValue.serverTimestamp()});
 
     await batch.commit();
   }
@@ -103,9 +105,15 @@ class ShopRepository {
         "state": state,
         "pincode": pincode,
       },
-      // We also update the top-level location metadata for easier filtering later
       "updatedAt": FieldValue.serverTimestamp(),
     });
+
+    _logger.logAudit(
+      entityType: 'shop_profile',
+      entityId: uid,
+      action: 'update_address',
+      description: 'Shop owner updated physical address',
+    );
   }
 
   // --- UPDATE BUSINESS HOURS ---
@@ -122,52 +130,60 @@ class ShopRepository {
   // --- ADD IMAGE TO GALLERY ---
   Future<void> addGalleryImage(String uid, String url) async {
     await _firestore.collection('shops').doc(uid).update({
-      "galleryImages": FieldValue.arrayUnion([url]), // Adds to array
+      "galleryImages": FieldValue.arrayUnion([url]),
       "updatedAt": FieldValue.serverTimestamp(),
     });
+
+    _logger.logAudit(
+      entityType: 'shop_gallery',
+      entityId: uid,
+      action: 'add_image',
+      description: 'Shop added a new photo to public gallery',
+    );
   }
 
+  // --- REMOVE IMAGE FROM GALLERY ---
   Future<void> removeGalleryImage(String uid, String url) async {
-    // 1. Delete from Cloud Storage (Clean up)
-    // We use a try-catch block for storage deletion so it doesn't stop the DB update
     try {
       final storageRef = FirebaseStorage.instance.refFromURL(url);
       await storageRef.delete();
-    } catch (e) {
-      print("Storage delete error (might already be gone): $e");
+    } catch (e, s) {
+      _logger.logError(e, s, reason: "Storage delete error during gallery cleanup");
     }
 
-    // 2. Remove link from Firestore
     await _firestore.collection('shops').doc(uid).update({
       "galleryImages": FieldValue.arrayRemove([url]),
       "updatedAt": FieldValue.serverTimestamp(),
     });
   }
+
   // --- FETCH ACTIVE SHOPS FOR DISCOVERY ---
-  // We fetch strictly 'active' shops.
-  // We will filter by City on the client side or here.
-  // For MVP, let's fetch all active shops and filter in UI for maximum speed.
   Stream<List<DocumentSnapshot<Map<String, dynamic>>>> getActiveShopsStream() {
     return _firestore
         .collection('shops')
         .where('status', isEqualTo: 'active')
-    // .orderBy('createdAt', descending: true) // Optional: Newest first
+    // ✅ CRITICAL FIX: Only show fully verified shops to Architects
+        .where('isVerified', isEqualTo: true)
         .snapshots()
         .map((snapshot) => snapshot.docs);
   }
 
-  // --- TOGGLE SHOP STATUS (ACTIVE/INACTIVE) ---
+  // --- TOGGLE SHOP STATUS (ONLINE/OFFLINE) ---
   Future<void> updateShopStatus(String uid, bool isActive) async {
     await _firestore.collection('shops').doc(uid).update({
       "status": isActive ? "active" : "inactive",
       "updatedAt": FieldValue.serverTimestamp(),
     });
+
+    _logger.logAudit(
+      entityType: 'shop_profile',
+      entityId: uid,
+      action: 'toggle_status',
+      description: 'Shop changed visibility status to ${isActive ? "active" : "inactive"}',
+    );
   }
 }
 
-// A FutureProvider to easily load this in the UI
-final allShopsProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
+final allShopsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   return ref.read(shopRepositoryProvider).getAllShops();
 });

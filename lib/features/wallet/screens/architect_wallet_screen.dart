@@ -44,7 +44,6 @@ class ArchitectWalletScreen extends ConsumerWidget {
                   "Earnings by Shop",
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                // Optional: Date Filter Icon could go here
               ],
             ),
             const SizedBox(height: 16),
@@ -84,7 +83,7 @@ class ArchitectWalletScreen extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [kPrimaryColor, kPrimaryVariant],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -103,25 +102,27 @@ class ArchitectWalletScreen extends ConsumerWidget {
             "₹${balance.toStringAsFixed(2)}",
             style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
           ),
-          // ✅ NEW: WITHDRAW BUTTON
+
           const SizedBox(height: 24),
 
           // Stats Row
+          // ✅ FIX: Wrapped in Expanded to prevent overflow on small screens
           Row(
             children: [
-              _buildStatItem("Total Earned", "₹${totalEarned.toStringAsFixed(0)}", Icons.verified),
-              Container(height: 30, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 20)),
-              _buildStatItem("Withdrawn", "₹${totalWithdrawn.toStringAsFixed(0)}", Icons.history),
-              Container(height: 30, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 20)),
-              _buildStatItem("Pending", "₹${pending.toStringAsFixed(0)}", Icons.hourglass_empty),
+              Expanded(child: _buildStatItem("Total Earned", "₹${totalEarned.toStringAsFixed(0)}", Icons.verified)),
+              Container(height: 30, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 10)),
+              Expanded(child: _buildStatItem("Withdrawn", "₹${totalWithdrawn.toStringAsFixed(0)}", Icons.history)),
+              Container(height: 30, width: 1, color: Colors.white24, margin: const EdgeInsets.symmetric(horizontal: 10)),
+              Expanded(child: _buildStatItem("Pending", "₹${pending.toStringAsFixed(0)}", Icons.hourglass_empty)),
             ],
           ),
           const SizedBox(height: 20),
+
+          // WITHDRAW BUTTON
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
-                // Check if user has enough to even open the sheet
                 if (balance < 1000) {
                   ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Minimum balance of ₹1,000 required to withdraw."))
@@ -129,16 +130,14 @@ class ArchitectWalletScreen extends ConsumerWidget {
                   return;
                 }
 
-                // Show the Sheet
                 showModalBottomSheet(
                   context: context,
-                  isScrollControlled: true, // Important for keyboard handling
+                  isScrollControlled: true,
                   shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.vertical(top: Radius.circular(20))
                   ),
                   builder: (context) => PayoutBottomSheet(
                     currentBalance: balance,
-                    // Pass the bank details from the wallet doc
                     bankDetails: data['bankDetails'] ?? {},
                   ),
                 );
@@ -153,7 +152,7 @@ class ArchitectWalletScreen extends ConsumerWidget {
             ),
           ),
 
-          // ✅ NEW: History Link
+          // History Link
           Center(
             child: TextButton(
               onPressed: () {
@@ -178,11 +177,15 @@ class ArchitectWalletScreen extends ConsumerWidget {
           children: [
             Icon(icon, color: Colors.white70, size: 12),
             const SizedBox(width: 4),
-            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            // ✅ FIX: Truncate long labels
+            Expanded(
+              child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        // ✅ FIX: Truncate large numbers
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
       ],
     );
   }
@@ -211,9 +214,9 @@ class ArchitectWalletScreen extends ConsumerWidget {
               context,
               MaterialPageRoute(
                 builder: (context) => LedgerHistoryScreen(
-                  partnerId: ledger['shopId'], // Pass the Shop's ID
-                  partnerName: shopName,       // Pass the Shop's Name
-                  isArchitectView: true
+                    partnerId: ledger['shopId'],
+                    partnerName: shopName,
+                    isArchitectView: true
                 ),
               ),
             );
@@ -222,7 +225,6 @@ class ArchitectWalletScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                // 1. Icon
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
@@ -230,19 +232,17 @@ class ArchitectWalletScreen extends ConsumerWidget {
                 ),
                 const SizedBox(width: 16),
 
-                // 2. Name & Total
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 4),
-                      Text("Lifetime: ₹${totalEarned.toStringAsFixed(0)}", style: TextStyle(color: kTextSecondary, fontSize: 12)),
+                      Text("Lifetime: ₹${totalEarned.toStringAsFixed(0)}", style: const TextStyle(color: kTextSecondary, fontSize: 12)),
                     ],
                   ),
                 ),
 
-                // 3. Clean Status Badge (No Arrow)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(

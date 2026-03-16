@@ -18,8 +18,8 @@ class WalletCard extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         // World-Class Gradient Background
-        gradient: LinearGradient(
-          colors: [kPrimaryColor, const Color(0xFF1A3B5C)],
+        gradient: const LinearGradient(
+          colors: [kPrimaryColor, Color(0xFF1A3B5C)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

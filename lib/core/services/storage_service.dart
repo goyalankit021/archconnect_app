@@ -2,67 +2,63 @@ import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/logger_service.dart'; // ✅ Inject Logger
 
-// Provider to access this service anywhere
-final storageServiceProvider = Provider((ref) => StorageService());
+final storageServiceProvider = Provider((ref) {
+  final logger = ref.read(loggerServiceProvider);
+  return StorageService(logger);
+});
 
 class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final ImagePicker _picker = ImagePicker();
+  final LoggerService _logger;
 
-  // --- 1. PICK IMAGE (From Camera or Gallery) ---
+  StorageService(this._logger);
+
+  // --- 1. PICK IMAGE ---
   Future<File?> pickImage({required bool fromCamera}) async {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-        imageQuality: 50,
+        imageQuality: 50, // Optimal for mobile
       );
 
-      if (pickedFile != null) {
-        return File(pickedFile.path);
-      }
+      if (pickedFile != null) return File(pickedFile.path);
       return null;
-    } catch (e) {
-      print("Error picking image: $e");
+
+    } catch (e, s) {
+      _logger.logError(e, s, reason: "Image Picker Failed (Camera/Gallery Permission?)");
       return null;
     }
   }
 
   // --- 2. UPLOAD FILE ---
-  // Returns the download URL (String) to save in Firestore
-  Future<String?> uploadFile({
-    required File file,
-    required String path, // e.g., "kyc/user_123_pan.jpg"
-  }) async {
+  Future<String?> uploadFile({required File file, required String path}) async {
     try {
-      // Create the reference in the cloud
       final ref = _storage.ref().child(path);
-
-      // Upload
       final uploadTask = ref.putFile(file);
-
-      // Wait for completion
       final snapshot = await uploadTask.whenComplete(() {});
-
-      // Get the URL
       final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      _logger.logDebug("File uploaded successfully to: $path");
       return downloadUrl;
-    } catch (e) {
-      print("Error uploading file: $e");
+
+    } catch (e, s) {
+      _logger.logError(e, s, reason: "Firebase Storage Upload Failed: $path");
       throw Exception("Upload failed: $e");
     }
   }
 
-  // --- DELETE FILE ---
+  // --- 3. DELETE FILE ---
   Future<void> deleteFile(String url) async {
     try {
-      // Create a reference from the URL
       final ref = _storage.refFromURL(url);
       await ref.delete();
-      print("Deleted file: $url");
-    } catch (e) {
-      print("Error deleting file: $e");
-      // We don't throw here to avoid blocking the UI if delete fails
+      _logger.logDebug("File deleted successfully: $url");
+    } catch (e, s) {
+      // Non-fatal error, but we log it to know if storage is clogging up
+      _logger.logError(e, s, reason: "Failed to delete file from Storage: $url");
     }
   }
 }
